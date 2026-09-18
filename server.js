@@ -3,8 +3,8 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const ort = require('onnxruntime-node');
 const sharp = require('sharp');
+const { spawn } = require('child_process');
 
 process.on('uncaughtException', (err) => {
     console.error('[UNCAUGHT EXCEPTION]', err);
@@ -53,16 +53,6 @@ const upload = multer({
     limits: { fileSize: 25 * 1024 * 1024 }
 });
 
-let session = null;
-async function getModelSession() {
-    if (!session) {
-        console.log('[AI] Loading BiRefNet model into memory...');
-        session = await ort.InferenceSession.create(MODEL_PATH);
-        console.log('[AI] Model loaded and ready!');
-    }
-    return session;
-}
-
 const jobs = new Map();
 
 app.post('/api/upload', upload.single('image'), (req, res) => {
@@ -80,8 +70,6 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
     res.json({ status: true, jobId, filename: req.file.filename });
 });
-
-const { spawn } = require('child_process');
 
 app.get('/api/process-stream/:jobId', async (req, res) => {
     const { jobId } = req.params;
@@ -127,52 +115,75 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
         const metadata = await sharp(inputPath).metadata();
         sendEvent(25, 'Preparing inference pipeline...', `Dimensions: ${metadata.width}x${metadata.height} (${metadata.format || 'image'})`);
 
-        sendEvent(35, 'Running AI segmentation...', 'Executing BiRefNet ONNX in isolated memory-safe worker...');
+        const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
 
-        let currentInferPct = 35;
-        let stepCount = 1;
-        const inferTimer = setInterval(() => {
-            if (isClosed) {
-                clearInterval(inferTimer);
-                return;
+        if (BACKEND_URL) {
+            sendEvent(35, 'Forwarding to Model Server...', `Sending request to ${BACKEND_URL}/inference...`);
+            const fileBuf = fs.readFileSync(inputPath);
+            const form = new FormData();
+            form.append('image', new Blob([fileBuf]), job.filename);
+
+            const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference`, {
+                method: 'POST',
+                body: form
+            });
+
+            if (!resp.ok) {
+                const errJson = await resp.json().catch(() => ({}));
+                throw new Error(errJson.error || `Model Server returned HTTP ${resp.status}`);
             }
-            if (currentInferPct < 85) {
-                currentInferPct += 5;
-                sendEvent(currentInferPct, 'Running AI inference on CPU...', `[Inference Step ${stepCount++}] Processing segmentation feature maps...`);
-            }
-        }, 800);
 
-        const workerPath = path.join(BASE_DIR, 'inference-worker.js');
-        const runWorker = () => new Promise((resolve, reject) => {
-            childProcess = spawn(process.execPath, [
-                '--expose-gc',
-                '--max-old-space-size=1536',
-                workerPath,
-                inputPath,
-                outputPath,
-                MODEL_PATH
-            ]);
+            const arrayBuf = await resp.arrayBuffer();
+            fs.writeFileSync(outputPath, Buffer.from(arrayBuf));
+            sendEvent(92, 'Result received!', 'Transparent PNG received from remote Model Server.');
+        } else {
+            sendEvent(35, 'Running AI segmentation...', 'Executing BiRefNet ONNX in local memory-safe worker...');
 
-            let stderrOutput = '';
-            childProcess.stderr.on('data', (d) => { stderrOutput += d.toString(); });
-
-            childProcess.on('close', (code) => {
-                clearInterval(inferTimer);
-                if (code === 0) {
-                    resolve();
-                } else {
-                    reject(new Error(stderrOutput || `Worker process exited with code ${code}`));
+            let currentInferPct = 35;
+            let stepCount = 1;
+            const inferTimer = setInterval(() => {
+                if (isClosed) {
+                    clearInterval(inferTimer);
+                    return;
                 }
+                if (currentInferPct < 85) {
+                    currentInferPct += 5;
+                    sendEvent(currentInferPct, 'Running AI inference on CPU...', `[Inference Step ${stepCount++}] Processing segmentation feature maps...`);
+                }
+            }, 800);
+
+            const workerPath = path.join(BASE_DIR, 'inference-worker.js');
+            const runWorker = () => new Promise((resolve, reject) => {
+                childProcess = spawn(process.execPath, [
+                    '--expose-gc',
+                    '--max-old-space-size=1536',
+                    workerPath,
+                    inputPath,
+                    outputPath,
+                    MODEL_PATH
+                ]);
+
+                let stderrOutput = '';
+                childProcess.stderr.on('data', (d) => { stderrOutput += d.toString(); });
+
+                childProcess.on('close', (code) => {
+                    clearInterval(inferTimer);
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(stderrOutput || `Worker process exited with code ${code}`));
+                    }
+                });
+
+                childProcess.on('error', (err) => {
+                    clearInterval(inferTimer);
+                    reject(err);
+                });
             });
 
-            childProcess.on('error', (err) => {
-                clearInterval(inferTimer);
-                reject(err);
-            });
-        });
-
-        await runWorker();
-        sendEvent(92, 'Compositing alpha channel...', 'Merging alpha mask natively via libvips joinChannel...');
+            await runWorker();
+            sendEvent(92, 'Compositing alpha channel...', 'Merging alpha mask natively via libvips joinChannel...');
+        }
 
         const durationMs = Date.now() - startTime;
         sendEvent(100, 'Complete!', `Background removed successfully in ${(durationMs / 1000).toFixed(2)} seconds.`);
@@ -228,13 +239,13 @@ app.use((req, res) => {
     }
 });
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
     console.log(`=========================================`);
-    console.log(`OpenRemove Server running at http://localhost:${PORT}`);
-    console.log(`=========================================`);
-    try {
-        await getModelSession();
-    } catch (e) {
-        console.error('Error preloading AI model:', e);
+    console.log(`OpenRemove Web Server running at http://localhost:${PORT}`);
+    if (process.env.MODEL_SERVER_URL) {
+        console.log(`[MODE] Decoupled: Routing AI tasks to ${process.env.MODEL_SERVER_URL}`);
+    } else {
+        console.log(`[MODE] Standalone: Local isolated worker inference`);
     }
+    console.log(`=========================================`);
 });

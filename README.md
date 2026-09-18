@@ -45,8 +45,11 @@ openremove/
 │   └── .well-known/
 │       └── security.txt        # Vulnerability disclosure policy
 ├── tmp/                        # Temporary uploaded images & outputs
-├── server.js                   # Express backend & ONNX execution pipeline
+├── inference-worker.js         # Isolated worker for memory-safe inference
+├── model-server.js             # Standalone Model Engine API service
+├── server.js                   # Web gateway & REST API server
 ├── package.json                # Project dependencies and scripts
+├── CHANGELOG.md                # Release history and updates
 ├── LICENSE                     # MIT License
 └── README.md                   # Project documentation
 ```
@@ -76,17 +79,46 @@ npm install
 - **BiRefNet Lite (Pre-included)**: Included in the repository under `models/lite/model.onnx` for out-of-the-box offline inference.
 - **BiRefNet Standard (Optional high-precision)**: Download from [emrikol/birefnet-matting-onnx](https://huggingface.co/emrikol/birefnet-matting-onnx) on Hugging Face and place in `models/standard/model.onnx`.
 
-### 3. Running the Server
+### 3. Environment Variables Configuration
 
-Start the application:
+Copy the template to create your local `.env` file:
 
 ```bash
-node server.js
+cp .env.example .env
 ```
 
-Default access points:
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | `3000` | Port for the web gateway interface and REST API |
+| `BACKEND_URL` | `http://localhost:5000` | URL or domain of the backend model engine |
+| `MODEL_PATH` | `./models/lite/model.onnx` | Custom path to ONNX model weights |
+
+---
+
+### 4. Running the Server
+
+#### Option A: Standalone Mode (All-in-One)
+Run the web application and local AI inference pipeline together on a single server:
+
+```bash
+npm start
+```
+
 - **Web Interface**: `http://localhost:3000`
 - **Healthcheck**: `http://localhost:3000/ping`
+
+#### Option B: Decoupled Mode (Microservice Architecture)
+Run the Model Inference Engine on a dedicated compute machine and the Web Gateway on a separate node:
+
+1. **Start Model Engine Server** (Port `5000` on compute machine):
+   ```bash
+   npm run start:engine
+   ```
+
+2. **Start Web Gateway** (pointing to Backend Model Server):
+   ```bash
+   BACKEND_URL=http://localhost:5000 npm run start:web
+   ```
 
 ---
 

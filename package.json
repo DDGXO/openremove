@@ -1,10 +1,12 @@
 {
   "name": "openremove",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "High-performance, offline AI background removal web app and REST API powered by BiRefNet and ONNX Runtime.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:engine": "node model-server.js",
+    "start:web": "node server.js",
     "dev": "node --watch server.js"
   },
   "keywords": [
