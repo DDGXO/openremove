@@ -34,14 +34,10 @@ async function run() {
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-        const mean = [0.485, 0.456, 0.406];
-        const std = [0.229, 0.224, 0.225];
         const floatArray = new Float32Array(3 * 1024 * 1024);
-
         for (let c = 0; c < 3; c++) {
             for (let i = 0; i < 1024 * 1024; i++) {
-                const val = rawBuffer[i * 3 + c] / 255.0;
-                floatArray[c * 1024 * 1024 + i] = (val - mean[c]) / std[c];
+                floatArray[c * 1024 * 1024 + i] = (rawBuffer[i * 3 + c] / 255.0) - 0.5;
             }
         }
 
@@ -51,7 +47,14 @@ async function run() {
             enableMemPattern: false,
             executionMode: 'sequential',
             graphOptimizationLevel: 'basic',
-            intraOpNumThreads: 4
+            intraOpNumThreads: parseInt(process.env.THREADS || '2', 10),
+            interOpNumThreads: 1,
+            extra: {
+                session: {
+                    'memory.enable_memory_arena_shrinkage': 'cpu:0',
+                    'intra_op.allow_spinning': '0'
+                }
+            }
         };
 
         const session = await ort.InferenceSession.create(modelPath, sessionOptions);
@@ -62,19 +65,18 @@ async function run() {
         const outputTensor = results[session.outputNames[0]];
         const maskData = outputTensor.data;
 
-        // Sigmoid activation with smoothstep clamp defringe
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+        for (let i = 0; i < maskData.length; i++) {
+            if (maskData[i] < minVal) minVal = maskData[i];
+            if (maskData[i] > maxVal) maxVal = maskData[i];
+        }
+        const range = maxVal - minVal || 1;
+
         const mask1024 = Buffer.alloc(1024 * 1024);
         for (let i = 0; i < maskData.length; i++) {
-            let val = 1 / (1 + Math.exp(-maskData[i]));
-            if (val <= 0.25) {
-                val = 0;
-            } else if (val >= 0.90) {
-                val = 1;
-            } else {
-                const t = (val - 0.25) / (0.90 - 0.25);
-                val = t * t * (3 - 2 * t);
-            }
-            mask1024[i] = Math.round(val * 255);
+            const norm = (maskData[i] - minVal) / range;
+            mask1024[i] = Math.round(Math.min(1, Math.max(0, norm)) * 255);
         }
 
         // Upscale mask to original dimensions

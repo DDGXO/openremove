@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2026-09-18
+
+### Added
+- Real-time FIFO inference queue manager with live queue position broadcasting and wait time estimation (SSE).
+- Real-time System Status monitor page (`/status`) and live JSON telemetry API (`/api/status`).
+- Dynamic service downtime notice banner for automated outage reporting.
+- Dedicated documentation and policy pages without modals (`/how-to-use`, `/api-docs`, `/faq`, `/privacy`, `/contributing`).
+- Responsive mobile navigation drawer with floating overlay.
+- Lossless 1:1 original resolution retention badge.
+- GitHub repository navigation button and icon in frontend header linking directly to `https://github.com/DDGXO/openremove`.
+- ONNX Session Anti-Spinning flag (`intra_op.allow_spinning: '0'`) to eliminate idle CPU 100% core pinning.
+
+### Changed
+- Migrated primary AI segmentation backbone to **BRIA RMBG-1.4 ONNX** (`1024x1024`).
+  - **Memory Footprint:** Slashed peak C++ memory spike by ~87% (from ~5.28 GB down to ~691 MB), enabling lightweight deployments on low-spec LXC/Docker containers and budget VPS.
+  - **Inference Speed:** Accelerated CPU execution speed by ~7x (reduced duration from 17-24s down to 2.3-3.3s per image).
+  - **Edge Quality:** Clean continuous alpha probability maps directly embedded from model output without harsh binary stepped thresholding.
+- Consolidated model structure into a single unified file path: `models/model.onnx` (removed legacy `models/lite` and `models/standard` folders).
+- Updated image normalization to standard RMBG range `[-0.5, 0.5]` (`(pixel / 255.0) - 0.5`).
+
+---
+
 ## [1.0.1] - 2026-09-18
+
 
 ### Added
 - Standalone Model Inference Server (`model-server.js`) on port `5000` with `POST /inference` and `GET /health` endpoints.

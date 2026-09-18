@@ -1,7 +1,7 @@
 {
   "name": "openremove",
-  "version": "1.0.1",
-  "description": "High-performance, offline AI background removal web app and REST API powered by BiRefNet and ONNX Runtime.",
+  "version": "1.0.3",
+  "description": "High-performance, offline AI background removal web app and REST API powered by BRIA RMBG-1.4 and ONNX Runtime.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,6 +11,8 @@
   },
   "keywords": [
     "background-remover",
+    "rmbg",
+    "rmbg-1.4",
     "birefnet",
     "onnx",
     "onnxruntime",
@@ -19,6 +21,7 @@
     "ai",
     "open-source"
   ],
+
   "author": "OpenRemove Contributors",
   "license": "MIT",
   "repository": {

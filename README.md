@@ -1,6 +1,6 @@
 # OpenRemove
 
-A high-performance, self-hosted, offline AI background removal application and REST API powered by BiRefNet and Microsoft ONNX Runtime.
+A high-performance, self-hosted, offline AI background removal application and REST API powered by BRIA RMBG-1.4 and Microsoft ONNX Runtime.
 
 ---
 
@@ -8,13 +8,14 @@ A high-performance, self-hosted, offline AI background removal application and R
 
 Commercial background removal APIs often enforce restrictive quotas, usage tracking, recurring subscription models, or privacy concerns regarding cloud data transfers.
 
-OpenRemove provides a self-hosted, private alternative designed for local hardware execution. It isolates subjects and removes backgrounds using state-of-the-art dichotomous image segmentation without relying on external cloud APIs or third-party telemetry.
+OpenRemove provides a self-hosted, private alternative designed for efficient local hardware execution. It isolates subjects and removes backgrounds using state-of-the-art dichotomous image segmentation in ~2-3 seconds on CPU with minimal memory footprint (<700MB peak RAM).
 
 ---
 
 ## Key Features
 
-- **BiRefNet Segmentation**: High-resolution dichotomous segmentation for fine edge preservation, hair matting, and foreground isolation.
+- **BRIA RMBG-1.4 Segmentation**: High-resolution image segmentation for fine edge preservation, hair matting, and foreground isolation.
+- **Ultra-Lightweight & Fast**: Slashes peak RAM to <700MB and completes inference in 2-3.3s on standard CPU cores.
 - **Local Execution**: Runs 100% offline via Microsoft ONNX Runtime (C++ engine) with AVX2 CPU acceleration.
 - **Comparison Viewer**: Built-in before/after split slider powered by CSS clipping.
 - **Real-Time Progress Streaming**: Server-Sent Events (SSE) provide live progress percentages and execution stages.
@@ -37,10 +38,15 @@ openremove/
 │   ├── CONTRIBUTING.md
 │   └── SECURITY.md
 ├── models/
-│   ├── lite/                   # BiRefNet Lite ONNX model weights
-│   └── standard/               # BiRefNet Standard ONNX model weights
+│   └── model.onnx              # RMBG-1.4 ONNX model weights (168 MB)
 ├── public/
-│   ├── index.html              # Web application interface
+│   ├── index.html              # Main background remover web interface
+│   ├── how-to-use.html         # User guide page
+│   ├── api-docs.html           # REST API reference documentation
+│   ├── faq.html                # FAQ and technical limits
+│   ├── privacy.html            # Privacy policy & data safety
+│   ├── contributing.html       # Contribution guidelines
+│   ├── status.html             # Real-time system status monitor
 │   ├── robots.txt              # Crawler permissions
 │   └── .well-known/
 │       └── security.txt        # Vulnerability disclosure policy
@@ -62,7 +68,7 @@ openremove/
 
 - Node.js (version 18.0.0 or newer)
 - npm or yarn
-- BiRefNet ONNX Model weights (`model.onnx`)
+- ONNX Model weights (`models/model.onnx`)
 
 ### 1. Installation
 
@@ -76,8 +82,7 @@ npm install
 
 ### 2. Model Weights
 
-- **BiRefNet Lite (Pre-included)**: Included in the repository under `models/lite/model.onnx` for out-of-the-box offline inference.
-- **BiRefNet Standard (Optional high-precision)**: Download from [emrikol/birefnet-matting-onnx](https://huggingface.co/emrikol/birefnet-matting-onnx) on Hugging Face and place in `models/standard/model.onnx`.
+- **RMBG-1.4 (Pre-included)**: Included in the repository under `models/model.onnx` for out-of-the-box offline inference.
 
 ### 3. Environment Variables Configuration
 
@@ -91,7 +96,8 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `PORT` | `3000` | Port for the web gateway interface and REST API |
 | `BACKEND_URL` | `http://localhost:5000` | URL or domain of the backend model engine |
-| `MODEL_PATH` | `./models/lite/model.onnx` | Custom path to ONNX model weights |
+| `MODEL_PATH` | `./models/model.onnx` | Custom path to ONNX model weights |
+
 
 ---
 
@@ -182,7 +188,7 @@ GET /api/process-stream/:jobId
 ```json
 {
   "percent": 40,
-  "statusText": "Starting BiRefNet AI inference on CPU...",
+  "statusText": "Executing RMBG AI background segmentation on CPU...",
   "log": "[17:50:12] ONNX InferenceSession running on CPU (AVX2 mode)..."
 }
 ```
@@ -191,7 +197,7 @@ GET /api/process-stream/:jobId
 ```json
 {
   "status": true,
-  "durationMs": 10250,
+  "durationMs": 2850,
   "originalUrl": "/tmp/upload-1789722300-123456789.jpg",
   "resultUrl": "/tmp/nobg-upload-1789722300-123456789.png",
   "downloadName": "nobg-upload-1789722300-123456789.png"
@@ -210,10 +216,11 @@ Contributions are welcome. Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) a
 
 OpenRemove builds upon the work of the following open-source projects:
 
-- **[BiRefNet](https://github.com/ZhengPeng7/BiRefNet)**: Dichotomous image segmentation research by [ZhengPeng7](https://github.com/ZhengPeng7) (MIT License).
+- **[BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4)**: State-of-the-art background removal model by BRIA AI.
 - **[Microsoft ONNX Runtime](https://github.com/microsoft/onnxruntime)**: Cross-platform inference engine.
 - **[Sharp & libvips](https://github.com/lovell/sharp)**: High-speed Node.js image processing library.
 - **[Hugging Face Community](https://huggingface.co/)**: Open-source model weights hosting and conversions.
+
 
 ---
 

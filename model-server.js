@@ -12,7 +12,8 @@ sharp.concurrency(1);
 const app = express();
 const PORT = process.env.MODEL_PORT || process.env.PORT || 5000;
 const BASE_DIR = path.resolve(__dirname);
-const MODEL_PATH = process.env.MODEL_PATH || path.join(BASE_DIR, 'models', 'lite', 'model.onnx');
+const MODEL_PATH = process.env.MODEL_PATH || path.join(BASE_DIR, 'models', 'model.onnx');
+
 
 app.use(cors());
 app.use(express.json());
@@ -32,10 +33,17 @@ async function getModelSession() {
             enableMemPattern: false,
             executionMode: 'sequential',
             graphOptimizationLevel: 'basic',
-            intraOpNumThreads: parseInt(process.env.THREADS || '4', 10)
+            intraOpNumThreads: parseInt(process.env.THREADS || '2', 10),
+            interOpNumThreads: 1,
+            extra: {
+                session: {
+                    'memory.enable_memory_arena_shrinkage': 'cpu:0',
+                    'intra_op.allow_spinning': '0'
+                }
+            }
         };
         session = await ort.InferenceSession.create(MODEL_PATH, sessionOptions);
-        console.log('[ENGINE] Inference session ready.');
+        console.log(`[ENGINE] Inference session ready using ${path.basename(MODEL_PATH)}`);
     }
     return session;
 }
@@ -43,7 +51,7 @@ async function getModelSession() {
 app.get('/health', (req, res) => {
     res.json({
         status: true,
-        engine: 'BiRefNet ONNX',
+        engine: 'Background Removal ONNX',
         model: path.basename(MODEL_PATH),
         memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
         timestamp: Date.now()
@@ -78,14 +86,10 @@ app.post('/inference', upload.single('image'), async (req, res) => {
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-        const mean = [0.485, 0.456, 0.406];
-        const std = [0.229, 0.224, 0.225];
         const floatArray = new Float32Array(3 * 1024 * 1024);
-
         for (let c = 0; c < 3; c++) {
             for (let i = 0; i < 1024 * 1024; i++) {
-                const val = rawBuffer[i * 3 + c] / 255.0;
-                floatArray[c * 1024 * 1024 + i] = (val - mean[c]) / std[c];
+                floatArray[c * 1024 * 1024 + i] = (rawBuffer[i * 3 + c] / 255.0) - 0.5;
             }
         }
 
@@ -95,19 +99,20 @@ app.post('/inference', upload.single('image'), async (req, res) => {
         const results = await sess.run({ [inputName]: inputTensor });
         const maskData = results[sess.outputNames[0]].data;
 
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+        for (let i = 0; i < maskData.length; i++) {
+            if (maskData[i] < minVal) minVal = maskData[i];
+            if (maskData[i] > maxVal) maxVal = maskData[i];
+        }
+        const range = maxVal - minVal || 1;
+
         const mask1024 = Buffer.alloc(1024 * 1024);
         for (let i = 0; i < maskData.length; i++) {
-            let val = 1 / (1 + Math.exp(-maskData[i]));
-            if (val <= 0.25) {
-                val = 0;
-            } else if (val >= 0.90) {
-                val = 1;
-            } else {
-                const t = (val - 0.25) / (0.90 - 0.25);
-                val = t * t * (3 - 2 * t);
-            }
-            mask1024[i] = Math.round(val * 255);
+            const norm = (maskData[i] - minVal) / range;
+            mask1024[i] = Math.round(Math.min(1, Math.max(0, norm)) * 255);
         }
+
 
         const maskOrig = await sharp(mask1024, {
             raw: { width: 1024, height: 1024, channels: 1 }

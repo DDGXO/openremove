@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REST API Documentation - OpenRemove</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-white text-gray-900 font-sans flex flex-col justify-between antialiased">
+
+    <!-- Navbar -->
+    <nav class="w-full bg-white border-b border-gray-200 sticky top-0 z-40 relative">
+        <div class="w-full px-4 sm:px-8 lg:px-12 h-16 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-8">
+                <a href="/" class="text-xl font-bold tracking-tight text-gray-900 hover:text-blue-600 transition">
+                    OpenRemove
+                </a>
+
+                <!-- Desktop Nav Links -->
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+                    <a href="/how-to-use" class="hover:text-gray-900 transition">How to Use</a>
+                    <a href="/api-docs" class="text-blue-600 font-semibold transition">API</a>
+                    <a href="/faq" class="hover:text-gray-900 transition">FAQ</a>
+                    <a href="/privacy" class="hover:text-gray-900 transition">Privacy</a>
+                    <a href="/contributing" class="hover:text-gray-900 transition">Contributing</a>
+                </div>
+            </div>
+
+            <!-- Right Actions (Desktop) -->
+            <div class="hidden md:flex items-center gap-4 text-sm font-medium text-gray-600">
+                <a href="/status" class="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Status
+                </a>
+                <a href="/ping" target="_blank" class="hover:text-gray-900 transition font-mono text-xs text-gray-500">
+                    /ping
+                </a>
+                <a href="https://github.com/DDGXO/openremove" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900 transition flex items-center gap-1.5" title="GitHub Repository">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                    </svg>
+                </a>
+            </div>
+
+            <!-- Mobile Hamburger Button -->
+            <div class="flex items-center gap-2 md:hidden">
+                <a href="/status" class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Status
+                </a>
+                <button onclick="toggleMobileMenu()" class="p-1.5 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition focus:outline-none" aria-label="Toggle Menu">
+                    <svg id="hamburgerIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                    <svg id="closeIcon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Floating Overlay -->
+        <div id="mobileMenu" class="hidden md:hidden absolute top-16 left-0 w-full bg-white border-b border-gray-200 px-6 py-4 space-y-3 shadow-xl z-50 transition-all">
+            <a href="/how-to-use" class="block text-sm font-medium text-gray-700 hover:text-blue-600 py-1.5 transition">How to Use</a>
+            <a href="/api-docs" class="block text-sm font-semibold text-blue-600 py-1.5 transition">API</a>
+            <a href="/faq" class="block text-sm font-medium text-gray-700 hover:text-blue-600 py-1.5 transition">FAQ</a>
+            <a href="/privacy" class="block text-sm font-medium text-gray-700 hover:text-blue-600 py-1.5 transition">Privacy</a>
+            <a href="/contributing" class="block text-sm font-medium text-gray-700 hover:text-blue-600 py-1.5 transition">Contributing</a>
+            <a href="https://github.com/DDGXO/openremove" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 py-1.5 transition">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                </svg>
+                <span>GitHub</span>
+            </a>
+            <a href="/ping" target="_blank" class="block text-xs font-mono text-gray-500 hover:text-gray-900 py-1 transition">/ping</a>
+        </div>
+    </nav>
+
+
+    <!-- Main Content -->
+    <main class="max-w-3xl w-full mx-auto px-6 py-12 flex-1">
+        
+        <div class="mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">REST API Reference</h1>
+            <p class="text-sm text-gray-500">Integrate OpenRemove background removal directly into bots, services, and workflows.</p>
+        </div>
+
+        <div class="space-y-8">
+            
+            <!-- Healthcheck Endpoint -->
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[11px] font-bold">GET</span>
+                    <span class="font-mono text-xs font-bold text-gray-900">/ping</span>
+                </div>
+                <p class="text-xs text-gray-600 mb-3">Healthcheck endpoint to verify server status and uptime.</p>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X GET http://localhost:3000/ping</pre>
+            </div>
+
+            <!-- Upload Endpoint -->
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono text-[11px] font-bold">POST</span>
+                    <span class="font-mono text-xs font-bold text-gray-900">/api/upload</span>
+                </div>
+                <p class="text-xs text-gray-600 mb-3">Upload an image file (`image` form field, max 25MB). Returns a `jobId` for SSE streaming.</p>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X POST http://localhost:3000/api/upload \
+  -F "image=@photo.jpg"</pre>
+            </div>
+
+            <!-- SSE Stream Endpoint -->
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-mono text-[11px] font-bold">GET</span>
+                    <span class="font-mono text-xs font-bold text-gray-900">/api/process-stream/:jobId</span>
+                </div>
+                <p class="text-xs text-gray-600 mb-3">Server-Sent Events (SSE) stream for real-time inference progress and result URL.</p>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -N http://localhost:3000/api/process-stream/YOUR_JOB_ID</pre>
+            </div>
+
+            <!-- Dedicated Inference Engine Endpoint -->
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-mono text-[11px] font-bold">POST</span>
+                    <span class="font-mono text-xs font-bold text-gray-900">http://localhost:5000/inference</span>
+                </div>
+                <p class="text-xs text-gray-600 mb-3">Direct synchronous inference endpoint returning a raw transparent PNG buffer.</p>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X POST http://localhost:5000/inference \
+  -F "image=@photo.jpg" \
+  --output result.png</pre>
+            </div>
+
+            <!-- Limits & Data Safety -->
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <h3 class="text-xs font-bold text-gray-900 mb-2">API Limits & Data Safety</h3>
+                <ul class="text-xs text-gray-600 space-y-1.5 list-disc list-inside">
+                    <li>Max payload size: 25 MB.</li>
+                    <li>Supported MIME types: <code>image/png</code>, <code>image/jpeg</code>, <code>image/webp</code>, <code>image/tiff</code>.</li>
+                    <li>Zero cloud dependencies: images are never sent over public networks.</li>
+                </ul>
+            </div>
+
+        </div>
+
+        <div class="mt-10 text-center">
+            <a href="/" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-sm">
+                Back to App &rarr;
+            </a>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full border-t border-gray-100 bg-white py-6 text-center text-xs text-gray-400">
+        <div class="w-full px-4 sm:px-8 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>&copy; 2026 OpenRemove &bull; Released under the MIT License</span>
+            <div class="flex items-center gap-4 text-gray-500">
+                <a href="/how-to-use" class="hover:underline">How to Use</a>
+                <a href="/api-docs" class="hover:underline font-semibold text-gray-700">API</a>
+                <a href="/faq" class="hover:underline">FAQ</a>
+                <a href="/privacy" class="hover:underline">Privacy</a>
+                <a href="/contributing" class="hover:underline">Contributing</a>
+                <a href="https://github.com/DDGXO/openremove" target="_blank" class="hover:underline">GitHub</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            const hamburger = document.getElementById('hamburgerIcon');
+            const close = document.getElementById('closeIcon');
+            if (menu.classList.contains('hidden')) {
+                menu.classList.remove('hidden');
+                hamburger.classList.add('hidden');
+                close.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+                hamburger.classList.remove('hidden');
+                close.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
