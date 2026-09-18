@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Temporary uploaded files and output images
+tmp/*
+!tmp/.gitkeep
+
+# Environment variables & local configs
+.env
+.env.local
+
+# Standard AI Model Weights (Large binary >900MB, downloaded via Hugging Face)
+models/standard/*.onnx
+!models/standard/.gitkeep
+
+# Backups and OS artifacts
+*.bak
+server.js.bak
+.DS_Store
+Thumbs.db

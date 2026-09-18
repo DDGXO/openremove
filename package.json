@@ -1,0 +1,40 @@
+{
+  "name": "openremove",
+  "version": "1.0.0",
+  "description": "High-performance, offline AI background removal web app and REST API powered by BiRefNet and ONNX Runtime.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "background-remover",
+    "birefnet",
+    "onnx",
+    "onnxruntime",
+    "sharp",
+    "image-segmentation",
+    "ai",
+    "open-source"
+  ],
+  "author": "OpenRemove Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DDGXO/openremove.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DDGXO/openremove/issues"
+  },
+  "homepage": "https://github.com/DDGXO/openremove#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "onnxruntime-node": "^1.18.0",
+    "sharp": "^0.33.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

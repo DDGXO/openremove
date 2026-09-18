@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRemove - Free AI Background Remover</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #ffffff;
+            color: #1f2937;
+        }
+
+        .checkerboard-pattern {
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(45deg, #f3f4f6 25%, transparent 25%), 
+                linear-gradient(-45deg, #f3f4f6 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f3f4f6 75%), 
+                linear-gradient(-45deg, transparent 75%, #f3f4f6 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+        }
+
+        .comparison-stage {
+            position: relative;
+            user-select: none;
+            overflow: hidden;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: ew-resize;
+            background: #ffffff;
+        }
+
+        .layer-after {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 520px;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .layer-before {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            clip-path: polygon(0 0, var(--slider-pos, 50%) 0, var(--slider-pos, 50%) 100%, 0 100%);
+        }
+
+        .slider-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: var(--slider-pos, 50%);
+            width: 2px;
+            background: #ffffff;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .slider-button {
+            position: absolute;
+            top: 50%;
+            left: var(--slider-pos, 50%);
+            transform: translate(-50%, -50%);
+            width: 36px;
+            height: 36px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        .slider-button svg {
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- Navbar -->
+    <nav class="w-full bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <!-- Brand Logo (Pure Typography Wordmark) -->
+            <div class="flex items-center gap-8">
+                <a href="/" class="text-xl font-bold tracking-tight text-gray-900 hover:text-blue-600 transition">
+                    OpenRemove
+                </a>
+
+                <!-- Nav Links -->
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+                    <button onclick="openModal('modalHowTo')" class="hover:text-gray-900 transition cursor-pointer">How to Use</button>
+                    <button onclick="openModal('modalApi')" class="hover:text-gray-900 transition cursor-pointer">API</button>
+                    <a href="#thanksToSection" class="hover:text-gray-900 transition cursor-pointer">Thanks To</a>
+                </div>
+            </div>
+
+            <!-- Right Actions -->
+            <div class="flex items-center gap-4 text-sm font-medium text-gray-600">
+                <a href="/ping" target="_blank" class="hover:text-gray-900 transition font-mono text-xs">
+                    /ping
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Section -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-10 sm:py-16 flex flex-col items-center">
+        
+        <!-- Hero Header -->
+        <div id="heroHeader" class="text-center max-w-xl mb-10">
+            <h1 class="text-3xl sm:text-5xl font-bold text-gray-900 tracking-tight leading-tight mb-4">
+                Remove Image Background
+            </h1>
+            <p class="text-base sm:text-lg text-gray-500 font-normal">
+                100% Automatically and <span class="text-gray-900 font-medium">Completely Free</span>
+            </p>
+        </div>
+
+        <!-- Upload Container -->
+        <div id="uploadCard" class="w-full max-w-xl bg-white rounded-2xl border-2 border-dashed border-gray-200 hover:border-blue-500 p-10 sm:p-14 text-center transition-colors duration-150 shadow-sm">
+            <input type="file" id="fileInput" accept="image/*" class="hidden">
+            
+            <div class="flex flex-col items-center justify-center">
+                <button onclick="document.getElementById('fileInput').click()" class="px-8 py-4 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base shadow-md hover:shadow-lg transition active:scale-98 cursor-pointer mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
+                    Upload Image
+                </button>
+                
+                <p class="text-sm text-gray-500 font-normal mb-1">
+                    or drop a file here
+                </p>
+                <p class="text-xs text-gray-400">
+                    Paste image from clipboard <kbd class="px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200 font-mono text-[11px] text-gray-600">Ctrl + V</kbd>
+                </p>
+            </div>
+        </div>
+
+        <!-- Loading Progress -->
+        <div id="loadingCard" class="hidden w-full max-w-md bg-white rounded-xl border border-gray-200 p-6 flex-col items-center text-center shadow-sm">
+            <div class="w-full flex items-center justify-between mb-2">
+                <span id="statusLabel" class="text-xs font-semibold text-gray-700">Preparing image...</span>
+                <span id="percentLabel" class="text-xs font-bold text-blue-600 font-mono">0%</span>
+            </div>
+
+            <!-- Minimal Progress Bar -->
+            <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden mb-3">
+                <div id="progressBar" class="h-full bg-blue-600 rounded-full transition-all duration-200 ease-out" style="width: 0%"></div>
+            </div>
+
+            <p id="debugStepText" class="text-[11px] text-gray-400 font-mono text-left w-full truncate bg-gray-50 px-2.5 py-1 rounded border border-gray-100">
+                Processing on local CPU...
+            </p>
+        </div>
+
+        <!-- Result Section (Clean Comparison) -->
+        <div id="resultCard" class="hidden w-full bg-white rounded-xl border border-gray-200 p-6 sm:p-8 flex-col items-center shadow-sm">
+            
+            <!-- Comparison Stage -->
+            <div class="w-full max-w-3xl comparison-stage checkerboard-pattern border border-gray-200 mb-6" id="comparisonBox" style="--slider-pos: 50%;">
+                
+                <!-- Bottom: Transparent PNG Result -->
+                <img id="resultImg" class="layer-after" src="" alt="Result">
+                
+                <!-- Top: Original Image (Clipped) -->
+                <img id="originalImg" class="layer-before" src="" alt="Original">
+
+                <!-- Divider & Handle -->
+                <div class="slider-line"></div>
+                <div class="slider-button">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path>
+                    </svg>
+                </div>
+
+                <!-- Labels -->
+                <span class="absolute top-3 left-3 px-2 py-0.5 rounded bg-black/60 backdrop-blur text-[11px] font-medium text-white pointer-events-none">Original</span>
+                <span class="absolute top-3 right-3 px-2 py-0.5 rounded bg-black/60 backdrop-blur text-[11px] font-medium text-white pointer-events-none">Removed BG</span>
+            </div>
+
+            <!-- Action Bar -->
+            <div class="w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
+                <div class="text-xs text-gray-500">
+                    Processed in <span id="durationText" class="font-medium text-gray-700">0s</span>
+                </div>
+
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <button id="resetBtn" class="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium transition cursor-pointer">
+                        Upload Another
+                    </button>
+                    <a id="downloadBtn" href="#" download="output.png" class="flex-1 sm:flex-none px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Download PNG
+                    </a>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Thanks To Section -->
+        <section id="thanksToSection" class="w-full max-w-3xl mt-16 pt-10 border-t border-gray-100">
+            <div class="text-center mb-6">
+                <h2 class="text-base font-bold text-gray-900 tracking-tight">Thanks To & Open Source Credits</h2>
+                <p class="text-xs text-gray-500 mt-1">Powered by state-of-the-art open source AI research and tools.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div class="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100">
+                    <div class="font-semibold text-gray-900 text-xs">BiRefNet (Bilateral Reference Network)</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">High-resolution dichotomous image segmentation model by ZhengPeng7 (MIT License).</div>
+                </div>
+                <div class="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100">
+                    <div class="font-semibold text-gray-900 text-xs">Microsoft ONNX Runtime</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">High-performance C++ cross-platform inference engine with AVX2 CPU acceleration.</div>
+                </div>
+                <div class="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100">
+                    <div class="font-semibold text-gray-900 text-xs">Sharp & libvips</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">Blazing fast image processing library for RGBA channel composition.</div>
+                </div>
+                <div class="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100">
+                    <div class="font-semibold text-gray-900 text-xs">Open Source Community</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 leading-relaxed">To all contributors and researchers advancing open vision AI.</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal How to Use -->
+    <div id="modalHowTo" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+                <h3 class="text-lg font-bold text-gray-900">How to Use</h3>
+                <button onclick="closeModal('modalHowTo')" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="space-y-2.5 text-xs text-gray-600">
+                <p><strong>1. Select Image</strong>: Click <em>Upload Image</em>, drag and drop a file, or press <code>Ctrl + V</code> to paste from clipboard.</p>
+                <p><strong>2. Automatic Processing</strong>: BiRefNet AI isolates the foreground subject and removes background automatically.</p>
+                <p><strong>3. Compare & Download</strong>: Drag the Before/After slider to inspect the cutout, then click <em>Download PNG</em>.</p>
+            </div>
+            <div class="mt-5 text-right">
+                <button onclick="closeModal('modalHowTo')" class="px-4 py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-black transition cursor-pointer">Got It</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal API Docs -->
+    <div id="modalApi" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+                <h3 class="text-lg font-bold text-gray-900">API Endpoint</h3>
+                <button onclick="closeModal('modalApi')" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="space-y-2 text-xs text-gray-600">
+                <p>Upload endpoint for external bots and backend services:</p>
+                <pre class="bg-gray-900 text-gray-200 p-2.5 rounded font-mono text-[11px] overflow-x-auto">POST http://localhost:3000/api/upload
+Content-Type: multipart/form-data
+Field: image (File)</pre>
+                <p class="mt-2">Realtime SSE Stream:</p>
+                <pre class="bg-gray-900 text-gray-200 p-2.5 rounded font-mono text-[11px] overflow-x-auto">GET http://localhost:3000/api/process-stream/:jobId</pre>
+            </div>
+            <div class="mt-5 text-right">
+                <button onclick="closeModal('modalApi')" class="px-4 py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-black transition cursor-pointer">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="w-full border-t border-gray-100 bg-white py-6 text-center text-xs text-gray-400">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>&copy; 2026 OpenRemove &bull; Released under the MIT License</span>
+            <div class="flex items-center gap-4 text-gray-500">
+                <button onclick="openModal('modalHowTo')" class="hover:underline cursor-pointer">How to Use</button>
+                <button onclick="openModal('modalApi')" class="hover:underline cursor-pointer">API</button>
+                <a href="#thanksToSection" class="hover:underline cursor-pointer">Thanks To</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        (function showConsoleBranding() {
+            try {
+                console.clear();
+                console.log("%cOpenRemove", "color:#2563eb;font-size:42px;font-weight:900;font-family:sans-serif;");
+                console.log("%cOpenRemove - Free Open Source AI Background Remover", "color:#2563eb;font-size:13px;font-family:sans-serif;");
+                console.log("%cLicensed under the MIT License.", "color:#6b7280;font-size:11px;font-family:sans-serif;");
+            } catch (_) {}
+        })();
+
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
+
+        const fileInput = document.getElementById('fileInput');
+        const heroHeader = document.getElementById('heroHeader');
+        const uploadCard = document.getElementById('uploadCard');
+        const loadingCard = document.getElementById('loadingCard');
+        const resultCard = document.getElementById('resultCard');
+        const resultImg = document.getElementById('resultImg');
+        const originalImg = document.getElementById('originalImg');
+        const comparisonBox = document.getElementById('comparisonBox');
+        const durationText = document.getElementById('durationText');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const progressBar = document.getElementById('progressBar');
+        const percentLabel = document.getElementById('percentLabel');
+        const statusLabel = document.getElementById('statusLabel');
+        const debugStepText = document.getElementById('debugStepText');
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+        }
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            if (m) { m.classList.remove('flex'); m.classList.add('hidden'); }
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleUpload(e.target.files[0]);
+            }
+        });
+
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleUpload(e.dataTransfer.files[0]);
+            }
+        });
+
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    handleUpload(blob);
+                    break;
+                }
+            }
+        });
+
+        function updateProgress(percent, text, log) {
+            progressBar.style.width = `${percent}%`;
+            percentLabel.textContent = `${percent}%`;
+            if (text) statusLabel.textContent = text;
+            if (log) debugStepText.textContent = log;
+        }
+
+        async function handleUpload(file) {
+            heroHeader.classList.add('hidden');
+            uploadCard.classList.add('hidden');
+            loadingCard.classList.remove('hidden');
+            loadingCard.classList.add('flex');
+            resultCard.classList.add('hidden');
+            
+            updateProgress(2, 'Uploading image...', `File: ${file.name || 'clipboard-image.png'}`);
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const uploadData = await uploadRes.json();
+
+                if (!uploadRes.ok || !uploadData.jobId) {
+                    throw new Error(uploadData.error || 'Failed to upload file.');
+                }
+
+                updateProgress(5, 'Connecting to AI engine...', 'Starting processing pipeline...');
+
+                const eventSource = new EventSource(`${API_BASE}/api/process-stream/${uploadData.jobId}`);
+
+                eventSource.addEventListener('progress', (e) => {
+                    const data = JSON.parse(e.data);
+                    updateProgress(data.percent, data.statusText, data.log);
+                });
+
+                eventSource.addEventListener('complete', (e) => {
+                    const data = JSON.parse(e.data);
+                    updateProgress(100, 'Done!', 'Image ready.');
+                    eventSource.close();
+
+                    resultImg.src = `${API_BASE}${data.resultUrl}?t=${Date.now()}`;
+                    originalImg.src = `${API_BASE}${data.originalUrl}?t=${Date.now()}`;
+                    durationText.textContent = `${(data.durationMs / 1000).toFixed(1)}s`;
+                    downloadBtn.href = `${API_BASE}${data.resultUrl}`;
+                    downloadBtn.download = data.downloadName;
+
+                    resultImg.onload = () => {
+                        setSliderPosition(50);
+                        setTimeout(() => {
+                            loadingCard.classList.remove('flex');
+                            loadingCard.classList.add('hidden');
+                            resultCard.classList.remove('hidden');
+                            resultCard.classList.add('flex');
+                        }, 300);
+                    };
+                });
+
+                eventSource.addEventListener('error', (e) => {
+                    eventSource.close();
+                    let errMsg = 'Failed to process image.';
+                    try {
+                        const parsed = JSON.parse(e.data);
+                        if (parsed.error) errMsg = parsed.error;
+                    } catch(_) {}
+                    alert('Error: ' + errMsg);
+                    heroHeader.classList.remove('hidden');
+                    uploadCard.classList.remove('hidden');
+                    loadingCard.classList.remove('flex');
+                    loadingCard.classList.add('hidden');
+                });
+
+            } catch (err) {
+                alert('Error: ' + err.message);
+                heroHeader.classList.remove('hidden');
+                uploadCard.classList.remove('hidden');
+                loadingCard.classList.remove('flex');
+                loadingCard.classList.add('hidden');
+            }
+        }
+
+        let isDragging = false;
+        function setSliderPosition(percentage) {
+            const clamped = Math.max(0, Math.min(100, percentage));
+            comparisonBox.style.setProperty('--slider-pos', `${clamped}%`);
+        }
+
+        function handleMove(e) {
+            if (!isDragging) return;
+            const rect = comparisonBox.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const offsetX = clientX - rect.left;
+            const percentage = (offsetX / rect.width) * 100;
+            setSliderPosition(percentage);
+        }
+
+        comparisonBox.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            handleMove(e);
+        });
+        comparisonBox.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            handleMove(e);
+        }, { passive: true });
+
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('touchend', () => { isDragging = false; });
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, { passive: true });
+
+        resetBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            resultCard.classList.add('hidden');
+            resultCard.classList.remove('flex');
+            heroHeader.classList.remove('hidden');
+            uploadCard.classList.remove('hidden');
+            updateProgress(0, '');
+        });
+    </script>
+</body>
+</html>
