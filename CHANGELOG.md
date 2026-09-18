@@ -7,23 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.2] - 2026-09-18
-
-### Added
-- Standard `.env.example` configuration template in English covering `PORT`, `BACKEND_URL`, and `MODEL_PATH`.
-- Simplified environment configuration supporting `BACKEND_URL` for direct connection to the model inference service.
-
-### Changed
-- Removed redundant ONNX Runtime model initialization from the main web gateway startup process (`server.js`), keeping the web process lightweight.
-- Updated documentation in `README.md` with environment variables table and decoupled deployment instructions.
-
----
-
 ## [1.0.1] - 2026-09-18
 
 ### Added
 - Standalone Model Inference Server (`model-server.js`) on port `5000` with `POST /inference` and `GET /health` endpoints.
-- Remote Model Gateway support in `server.js` via `MODEL_SERVER_URL` environment variable for decoupled multi-server deployment.
+- Remote Model Gateway support in `server.js` via `BACKEND_URL` environment variable for decoupled multi-server deployment.
+- Standard `.env.example` configuration template in English covering `PORT`, `BACKEND_URL`, and `MODEL_PATH`.
 - Native `joinChannel()` alpha compositing in libvips/Sharp to eliminate unmanaged 4-channel JavaScript buffer allocations.
 - Automatic EXIF orientation normalization (`.rotate()`) and sRGB color space conversion for consistent segmentation across camera photos.
 - Standard GitHub community files in `docs/` (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`) and `.github/` (Issue and PR templates).
