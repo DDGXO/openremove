@@ -5,6 +5,6 @@ Contact: mailto:security@dgxohq.com
 Contact: https://t.me/justitguyuh
 Expires: 2027-12-31T23:59:59.000Z
 Preferred-Languages: en, id
-Canonical: http://localhost:3000/.well-known/security.txt
+Canonical: https://openremove.dgxohq.com/.well-known/security.txt
 Policy: https://github.com/DDGXO/openremove/blob/main/docs/SECURITY.md
-Acknowledgments: http://localhost:3000/#thanksToSection
+Acknowledgments: https://openremove.dgxohq.com/#thanksToSection

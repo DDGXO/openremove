@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.2] - 2026-09-19
+
+### Fixed
+- **Background Ghosting & Residual Artifacts:** Implemented alpha threshold noise suppression curve in inference mask processing (`model-server.js` and `inference-worker.js`). Clamps background probabilities $\le 5\%$ to $0$ and foreground $\ge 95\%$ to solid $255$, eliminating faint background ghosting while maintaining smooth sub-pixel alpha gradients for fine hair and edges.
+
+---
+
 ## [1.1.1] - 2026-09-18
 
 ### Security
