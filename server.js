@@ -5,6 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { spawn } = require('child_process');
+const {
+    getClientIp,
+    rateLimit,
+    securityHeaders,
+    validateImageFile,
+    getImageMime,
+    safeErrorMessage
+} = require('./lib/security');
 
 process.on('uncaughtException', (err) => {
     console.error('[UNCAUGHT EXCEPTION]', err);
@@ -14,6 +22,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
+app.disable('x-powered-by');
+
 const PORT = process.env.PORT || 3000;
 
 const BASE_DIR = path.resolve(__dirname);
@@ -22,14 +32,38 @@ const OUTPUT_DIR = TMP_DIR;
 const PUBLIC_DIR = path.join(BASE_DIR, 'public');
 const MODEL_PATH = process.env.MODEL_PATH || path.join(BASE_DIR, 'models', 'model.onnx');
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+const MAX_IMAGE_PIXELS = parseInt(process.env.MAX_IMAGE_PIXELS || '41943040', 10);
+const FILE_TTL_MS = parseInt(process.env.TMP_FILE_TTL_MIN || '30', 10) * 60 * 1000;
+const JOB_TTL_MS = parseInt(process.env.JOB_TTL_MIN || '15', 10) * 60 * 1000;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 
-app.use(cors());
+app.use(cors({
+    origin(origin, cb) {
+        if (!origin) return cb(null, true);
+        if (ALLOWED_ORIGINS.length === 0) return cb(null, false);
+        try {
+            const originUrl = new URL(origin);
+            return cb(null, ALLOWED_ORIGINS.some((o) => {
+                const allowed = new URL(o);
+                return allowed.host === originUrl.host;
+            }));
+        } catch (_) {
+            return cb(null, false);
+        }
+    },
+    optionsSuccessStatus: 204
+}));
 app.use(express.json());
+app.use(securityHeaders);
 app.use(express.static(PUBLIC_DIR));
-app.use('/tmp', express.static(TMP_DIR));
 
 // Healthcheck / Ping Routes
 app.get(['/ping', '/api/ping'], (req, res) => {
@@ -66,11 +100,39 @@ app.get('/contributing', (req, res) => {
     res.sendFile(path.join(PUBLIC_DIR, 'contributing.html'));
 });
 
+// Private temp file accessor (whitelisted image files only)
+app.get('/tmp/:name', (req, res) => {
+    const name = path.basename(req.params.name);
+    if (name !== req.params.name || !/^[a-zA-Z0-9._-]+$/.test(name)) {
+        return res.status(400).json({ status: false, error: 'Invalid file name.' });
+    }
+
+    const mime = getImageMime(path.extname(name).slice(1));
+    if (!mime) {
+        return res.status(404).json({ status: false, error: 'File not found.' });
+    }
+
+    const filePath = path.join(TMP_DIR, name);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ status: false, error: 'File not found.' });
+    }
+
+    res.set({
+        'Content-Type': mime,
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Cache-Control': 'no-store'
+    });
+    return fs.createReadStream(filePath).on('error', () => {
+        if (!res.headersSent) res.status(404).json({ status: false, error: 'File not found.' });
+    }).pipe(res);
+});
+
 
 // Real-Time System Status API (Uptime Kuma style JSON)
-app.get('/api/status', async (req, res) => {
+const statusRatePerIp = rateLimit({ windowMs: 60 * 1000, max: 30, name: 'status-ip' });
+app.get('/api/status', statusRatePerIp, async (req, res) => {
     const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
-    
+
     const webStatus = {
         status: 'online',
         uptime: Math.round(process.uptime()),
@@ -88,24 +150,29 @@ app.get('/api/status', async (req, res) => {
 
     if (BACKEND_URL) {
         const beStart = Date.now();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
             const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/health`, { signal: controller.signal });
-            clearTimeout(timeoutId);
             const beLatency = Date.now() - beStart;
             if (resp.ok) {
                 const data = await resp.json();
                 backendStatus.status = 'operational';
                 backendStatus.latencyMs = beLatency;
-                backendStatus.details = data;
+                backendStatus.details = {
+                    engine: data.engine,
+                    model: data.model,
+                    status: data.status
+                };
             } else {
                 backendStatus.status = 'degraded';
                 backendStatus.error = `HTTP ${resp.status}`;
             }
         } catch (err) {
-            backendStatus.status = 'offline';
-            backendStatus.error = err.message || 'Connection failed';
+            backendStatus.status = err.name === 'AbortError' ? 'degraded' : 'offline';
+            backendStatus.error = err.name === 'AbortError' ? 'Timeout' : 'Connection failed';
+        } finally {
+            clearTimeout(timeoutId);
         }
     } else {
         const modelExists = fs.existsSync(MODEL_PATH);
@@ -133,8 +200,7 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, TMP_DIR),
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname) || '.jpg';
-        cb(null, `upload-${uniqueSuffix}${ext}`);
+        cb(null, `upload-pending-${uniqueSuffix}`);
     }
 });
 const upload = multer({
@@ -146,6 +212,7 @@ const jobs = new Map();
 
 // Real-Time Inference Queue Manager
 const MAX_CONCURRENT_INFERENCES = parseInt(process.env.MAX_CONCURRENT || '1', 10);
+const MAX_QUEUE_LENGTH = parseInt(process.env.MAX_QUEUE || '50', 10);
 const AVG_INFERENCE_SECONDS = 2.5;
 
 let activeInferences = 0;
@@ -153,7 +220,7 @@ const inferenceQueue = []; // Array of { jobId, resolve, notify }
 
 function broadcastQueue() {
     inferenceQueue.forEach((item, index) => {
-        const queuePos = index + 1; // 1-indexed
+        const queuePos = index + 1;
         const estimatedSeconds = Math.max(1, Math.round(queuePos * AVG_INFERENCE_SECONDS));
         if (typeof item.notify === 'function') {
             item.notify(queuePos, estimatedSeconds);
@@ -164,7 +231,7 @@ function broadcastQueue() {
 function acquireInferenceSlot(jobId, notify) {
     if (activeInferences < MAX_CONCURRENT_INFERENCES && inferenceQueue.length === 0) {
         activeInferences++;
-        return Promise.resolve(0); // Immediately ready
+        return Promise.resolve(0);
     }
 
     return new Promise((resolve) => {
@@ -182,7 +249,6 @@ function acquireInferenceSlot(jobId, notify) {
 }
 
 function releaseInferenceSlot(jobId) {
-    // Remove from queue if present (e.g. cancelled before turn)
     const idx = inferenceQueue.findIndex(item => item.jobId === jobId);
     if (idx !== -1) {
         inferenceQueue.splice(idx, 1);
@@ -198,23 +264,53 @@ function releaseInferenceSlot(jobId) {
     broadcastQueue();
 }
 
-app.post('/api/upload', upload.single('image'), (req, res) => {
+
+async function validateAndFinalizeUpload(req, res, next) {
     if (!req.file) {
         return res.status(400).json({ status: false, error: 'Image file is required.' });
     }
 
-    const jobId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    jobs.set(jobId, {
-        jobId,
-        inputPath: req.file.path,
-        filename: req.file.filename,
-        size: req.file.size
+    try {
+        const { ext } = await validateImageFile(req.file.path, MAX_IMAGE_PIXELS);
+        const safeName = `upload-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const newPath = path.join(TMP_DIR, safeName);
+        fs.renameSync(req.file.path, newPath);
+        req.file.path = newPath;
+        req.file.filename = safeName;
+        return next();
+    } catch (err) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        const msg = err.code === 'ETOO_LARGE'
+            ? `Image exceeds maximum dimension limit (${MAX_IMAGE_PIXELS}px).`
+            : err.message;
+        return res.status(400).json({ status: false, error: msg });
+    }
+}
+
+const uploadRatePerIp = rateLimit({ windowMs: 60 * 1000, max: 15, name: 'upload-ip' });
+const uploadRateGlobal = rateLimit({ windowMs: 60 * 1000, max: 60, name: 'upload-global', globalKey: 'global-upload' });
+
+app.post('/api/upload',
+    uploadRatePerIp,
+    uploadRateGlobal,
+    upload.single('image'),
+    validateAndFinalizeUpload,
+    (req, res) => {
+        const jobId = Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 12);
+        jobs.set(jobId, {
+            jobId,
+            inputPath: req.file.path,
+            filename: req.file.filename,
+            size: req.file.size,
+            createdAt: Date.now()
+        });
+
+        return res.json({ status: true, jobId, filename: req.file.filename });
     });
 
-    res.json({ status: true, jobId, filename: req.file.filename });
-});
 
-app.get('/api/process-stream/:jobId', async (req, res) => {
+const streamRatePerIp = rateLimit({ windowMs: 60 * 1000, max: 30, name: 'stream-ip' });
+app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
     const { jobId } = req.params;
     const job = jobs.get(jobId);
 
@@ -222,21 +318,37 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
         return res.status(404).json({ status: false, error: 'Job ID not found.' });
     }
 
+    if (!/^[a-zA-Z0-9-]+$/.test(jobId)) {
+        return res.status(400).json({ status: false, error: 'Invalid job ID.' });
+    }
+
+    if (inferenceQueue.length >= MAX_QUEUE_LENGTH) {
+        return res.status(503).json({ status: false, error: 'Server is busy. Please try again shortly.' });
+    }
+
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
     let isClosed = false;
+    let slotReleased = false;
     let childProcess = null;
     let slotAcquired = false;
+
+    const releaseSlotOnce = () => {
+        if (slotReleased) return;
+        slotReleased = true;
+        releaseInferenceSlot(jobId);
+    };
 
     req.on('close', () => {
         isClosed = true;
         if (childProcess) {
             try { childProcess.kill(); } catch (_) {}
         }
-        releaseInferenceSlot(jobId);
+        releaseSlotOnce();
     });
 
     const sendEvent = (percent, statusText, logMsg, extra = {}) => {
@@ -255,12 +367,11 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
 
     try {
         sendEvent(5, 'Initializing AI engine...', `Received file: ${job.filename} (${(job.size / 1024).toFixed(1)} KB)`);
-        
+
         sendEvent(10, 'Reading image metadata...', 'Reading dimensions & EXIF orientation via Sharp');
-        const metadata = await sharp(inputPath).metadata();
+        const metadata = await sharp(inputPath, { limitInputPixels: Math.ceil(MAX_IMAGE_PIXELS * 1.1) }).metadata();
         sendEvent(15, 'Preparing inference pipeline...', `Dimensions: ${metadata.width}x${metadata.height} (${metadata.format || 'image'})`);
 
-        // Queue waiting callback
         const onQueuePositionUpdate = (position, estimatedSec) => {
             sendEvent(15, `Queue #${position} • Est. wait ~${estimatedSec}s`, `Position #${position} in queue. Estimated wait: ${estimatedSec} seconds.`, {
                 queuePosition: position,
@@ -268,12 +379,11 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
             });
         };
 
-        // Wait in queue if other inferences are active
         await acquireInferenceSlot(jobId, onQueuePositionUpdate);
         slotAcquired = true;
 
         if (isClosed) {
-            releaseInferenceSlot(jobId);
+            releaseSlotOnce();
             return;
         }
 
@@ -290,10 +400,18 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
             const form = new FormData();
             form.append('image', new Blob([fileBuf]), job.filename);
 
-            const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference`, {
-                method: 'POST',
-                body: form
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            let resp;
+            try {
+                resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference`, {
+                    method: 'POST',
+                    body: form,
+                    signal: controller.signal
+                });
+            } finally {
+                clearTimeout(timeoutId);
+            }
 
             if (!resp.ok) {
                 const errJson = await resp.json().catch(() => ({}));
@@ -350,7 +468,7 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
             sendEvent(92, 'Compositing alpha channel...', 'Merging alpha mask natively via libvips joinChannel...');
         }
 
-        releaseInferenceSlot(jobId);
+        releaseSlotOnce();
         slotAcquired = false;
 
         const durationMs = Date.now() - startTime;
@@ -369,17 +487,48 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
 
         jobs.delete(jobId);
     } catch (err) {
-        if (slotAcquired) {
-            releaseInferenceSlot(jobId);
-        }
         console.error('[STREAM ERROR]', err);
+        if (slotAcquired) releaseSlotOnce();
+        try { fs.unlinkSync(job.inputPath); } catch (_) {}
+
         if (!isClosed) {
-            res.write(`event: error\ndata: ${JSON.stringify({ status: false, error: err.message })}\n\n`);
+            res.write(`event: error\ndata: ${JSON.stringify({ status: false, error: safeErrorMessage(err) })}\n\n`);
             res.end();
         }
         jobs.delete(jobId);
     }
 });
+
+// Temp file & job retention sweeper (TTL)
+function sweepTmp() {
+    const now = Date.now();
+    try {
+        const files = fs.readdirSync(TMP_DIR);
+        for (const file of files) {
+            if (file === '.gitkeep') continue;
+            const filePath = path.join(TMP_DIR, file);
+            try {
+                const stat = fs.statSync(filePath);
+                if (now - stat.mtimeMs > FILE_TTL_MS) {
+                    fs.unlinkSync(filePath);
+                    console.log(`[SWEEPER] Removed expired temp file: ${file}`);
+                }
+            } catch (_) {}
+        }
+    } catch (err) {
+        console.error('[SWEEPER] TMP scan error:', err.message);
+    }
+
+    for (const [jobId, job] of jobs) {
+        if (now - job.createdAt > JOB_TTL_MS) {
+            try { fs.unlinkSync(job.inputPath); } catch (_) {}
+            jobs.delete(jobId);
+            console.log(`[SWEEPER] Evicted expired job: ${jobId}`);
+        }
+    }
+}
+sweepTmp();
+setInterval(sweepTmp, SWEEP_INTERVAL_MS).unref();
 
 // 404 Handler
 app.use((req, res) => {
@@ -413,10 +562,11 @@ app.use((req, res) => {
 app.listen(PORT, () => {
     console.log(`=========================================`);
     console.log(`OpenRemove Web Server running at http://localhost:${PORT}`);
-    if (process.env.MODEL_SERVER_URL) {
-        console.log(`[MODE] Decoupled: Routing AI tasks to ${process.env.MODEL_SERVER_URL}`);
+    if (process.env.BACKEND_URL || process.env.MODEL_SERVER_URL) {
+        console.log(`[MODE] Decoupled: Routing AI tasks to ${process.env.BACKEND_URL || process.env.MODEL_SERVER_URL}`);
     } else {
         console.log(`[MODE] Standalone: Local isolated worker inference`);
     }
+    console.log(`[SEC] Rate limits enabled | CORS restricted | security headers on | tmp TTL ${FILE_TTL_MS / 60000} min`);
     console.log(`=========================================`);
 });

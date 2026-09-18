@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Temporary uploaded files and output images
 tmp/*
@@ -19,5 +18,6 @@ models/standard/*.onnx
 server.js.bak
 backup/
 *backup*
+docs/internal/
 .DS_Store
 Thumbs.db

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-09-18
+
+### Added
+- Configurable security and scaling environment variables in `.env.example`: `ALLOWED_ORIGINS`, `MAX_IMAGE_PIXELS`, `TMP_FILE_TTL_MIN`, `JOB_TTL_MIN`, and `MAX_QUEUE`.
+
+### Changed
+- Upgraded `sharp` to `0.35.4` resolving all upstream libvips (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591) and libheif vulnerabilities.
+
+### Security
+- **Strict File Upload Validation (`lib/security.js`):** Magic bytes and metadata verification via Sharp (jpeg/png/webp/gif/bmp) with dimensions capped at 40 MP to prevent image bomb attacks.
+- **Private `/tmp/:name` Endpoint:** Replaced public static directory serving with a private sandboxed route enforcing `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, and `Cache-Control: no-store`.
+- **Sliding-Window Rate Limiting:** Dual per-IP and global bucket rate limits on `/api/upload`, `/api/process-stream`, and `/api/status` to prevent DoS and XFF IP-spoofing bypasses.
+- **Automated Retention & PII Sweeper:** Auto-purge for temporary upload files (30m TTL) and queued job maps (15m TTL).
+- **HTTP Security Headers & CORS:** Enforced HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, disabled `X-Powered-By`, and configurable `ALLOWED_ORIGINS` whitelist.
+- **SSE Error Sanitization & Queue Capping:** Sanitized internal server error traces and bounded queue capacity (`MAX_QUEUE`) with 503 rejection on overload.
+- **Decoupled Gateway Timeout:** 8-second fetch abort controller for remote model gateway calls.
+
+---
+
 ## [1.0.3] - 2026-09-18
 
 ### Added

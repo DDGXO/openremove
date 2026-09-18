@@ -14,7 +14,8 @@ async function run() {
     }
 
     try {
-        const image = sharp(inputPath).rotate();
+        const MAX_PIXELS = parseInt(process.env.MAX_IMAGE_PIXELS || '41943040', 10);
+        const image = sharp(inputPath, { limitInputPixels: Math.ceil(MAX_PIXELS * 1.1) }).rotate();
         const { data: rgbData, info } = await image
             .clone()
             .removeAlpha()

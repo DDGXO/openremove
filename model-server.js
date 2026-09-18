@@ -10,12 +10,20 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.MODEL_PORT || process.env.PORT || 5000;
 const BASE_DIR = path.resolve(__dirname);
 const MODEL_PATH = process.env.MODEL_PATH || path.join(BASE_DIR, 'models', 'model.onnx');
+const MAX_IMAGE_PIXELS = parseInt(process.env.MAX_IMAGE_PIXELS || '41943040', 10);
 
 
-app.use(cors());
+app.use(cors({
+    origin(origin, cb) {
+        if (!origin) return cb(null, true);
+        return cb(null, false);
+    },
+    optionsSuccessStatus: 204
+}));
 app.use(express.json());
 
 const upload = multer({
@@ -65,8 +73,16 @@ app.post('/inference', upload.single('image'), async (req, res) => {
 
     const startTime = Date.now();
     try {
+        const preMeta = await sharp(req.file.buffer, { limitInputPixels: Math.ceil(MAX_IMAGE_PIXELS * 1.1) }).metadata();
+        if (!preMeta.format || !['jpeg', 'png', 'webp', 'gif', 'bmp'].includes(preMeta.format)) {
+            return res.status(400).json({ status: false, error: 'Unsupported image format.' });
+        }
+        const pixels = (preMeta.width || 0) * (preMeta.height || 0);
+        if (!pixels || pixels > MAX_IMAGE_PIXELS) {
+            return res.status(400).json({ status: false, error: `Image is invalid or too large. Max ${MAX_IMAGE_PIXELS}px.` });
+        }
         const sess = await getModelSession();
-        const image = sharp(req.file.buffer).rotate();
+        const image = sharp(req.file.buffer, { limitInputPixels: Math.ceil(MAX_IMAGE_PIXELS * 1.1) }).rotate();
         
         const { data: rgbData, info } = await image
             .clone()
