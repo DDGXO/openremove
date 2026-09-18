@@ -81,6 +81,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     res.json({ status: true, jobId, filename: req.file.filename });
 });
 
+const { spawn } = require('child_process');
+
 app.get('/api/process-stream/:jobId', async (req, res) => {
     const { jobId } = req.params;
     const job = jobs.get(jobId);
@@ -95,8 +97,13 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
     res.flushHeaders();
 
     let isClosed = false;
+    let childProcess = null;
+
     req.on('close', () => {
         isClosed = true;
+        if (childProcess) {
+            try { childProcess.kill(); } catch (_) {}
+        }
     });
 
     const sendEvent = (percent, statusText, logMsg) => {
@@ -116,104 +123,56 @@ app.get('/api/process-stream/:jobId', async (req, res) => {
     try {
         sendEvent(5, 'Initializing AI engine...', `Received file: ${job.filename} (${(job.size / 1024).toFixed(1)} KB)`);
         
-        sendEvent(12, 'Reading image metadata...', 'Reading image dimensions & format via Sharp');
-        const sess = await getModelSession();
-        const image = sharp(inputPath);
-        const metadata = await image.metadata();
-        const { width: origW, height: origH, format } = metadata;
-        sendEvent(18, 'Metadata loaded', `Original input dimensions: ${origW}x${origH} (${format})`);
+        sendEvent(15, 'Reading image metadata...', 'Reading dimensions & EXIF orientation via Sharp');
+        const metadata = await sharp(inputPath).metadata();
+        sendEvent(25, 'Preparing inference pipeline...', `Dimensions: ${metadata.width}x${metadata.height} (${metadata.format || 'image'})`);
 
-        sendEvent(25, 'Preprocessing to 1024x1024...', 'Resizing raw buffer to 1024x1024 aspect ratio fill...');
-        const { data: rawBuffer } = await image
-            .resize(1024, 1024, { fit: 'fill' })
-            .removeAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
+        sendEvent(35, 'Running AI segmentation...', 'Executing BiRefNet ONNX in isolated memory-safe worker...');
 
-        sendEvent(32, 'Normalizing RGB tensor...', 'Normalizing NCHW float32 (mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])...');
-        const mean = [0.485, 0.456, 0.406];
-        const std = [0.229, 0.224, 0.225];
-        const floatArray = new Float32Array(3 * 1024 * 1024);
-
-        for (let c = 0; c < 3; c++) {
-            for (let i = 0; i < 1024 * 1024; i++) {
-                const val = rawBuffer[i * 3 + c] / 255.0;
-                floatArray[c * 1024 * 1024 + i] = (val - mean[c]) / std[c];
-            }
-        }
-
-        const inputTensor = new ort.Tensor('float32', floatArray, [1, 3, 1024, 1024]);
-        const inputName = sess.inputNames[0];
-
-        sendEvent(40, 'Starting BiRefNet AI inference on CPU...', `ONNX InferenceSession running on CPU (AVX2 mode)... Input tensor: [1, 3, 1024, 1024]`);
-
-        let currentInferPct = 40;
+        let currentInferPct = 35;
         let stepCount = 1;
         const inferTimer = setInterval(() => {
             if (isClosed) {
                 clearInterval(inferTimer);
                 return;
             }
-            if (currentInferPct < 75) {
-                currentInferPct += 6;
+            if (currentInferPct < 85) {
+                currentInferPct += 5;
                 sendEvent(currentInferPct, 'Running AI inference on CPU...', `[Inference Step ${stepCount++}] Processing segmentation feature maps...`);
             }
-        }, 900);
+        }, 800);
 
-        const inferStart = Date.now();
-        const results = await sess.run({ [inputName]: inputTensor });
-        clearInterval(inferTimer);
-        const inferDuration = Date.now() - inferStart;
+        const workerPath = path.join(BASE_DIR, 'inference-worker.js');
+        const runWorker = () => new Promise((resolve, reject) => {
+            childProcess = spawn(process.execPath, [
+                '--expose-gc',
+                '--max-old-space-size=1536',
+                workerPath,
+                inputPath,
+                outputPath,
+                MODEL_PATH
+            ]);
 
-        sendEvent(78, 'Inference completed!', `Model inference finished in ${inferDuration} ms.`);
+            let stderrOutput = '';
+            childProcess.stderr.on('data', (d) => { stderrOutput += d.toString(); });
 
-        const outputTensor = results[sess.outputNames[0]];
-        const maskData = outputTensor.data;
-        sendEvent(82, 'Extracting output tensor...', `Output tensor: dims=[${outputTensor.dims.join(',')}], total points=${maskData.length}`);
+            childProcess.on('close', (code) => {
+                clearInterval(inferTimer);
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(stderrOutput || `Worker process exited with code ${code}`));
+                }
+            });
 
-        sendEvent(88, 'Calculating sigmoid & defringe filter...', 'Applying sigmoid activation & edge boundary clamp threshold (0.25-0.90)...');
-        const maskBuffer = Buffer.alloc(1024 * 1024);
-        for (let i = 0; i < maskData.length; i++) {
-            let val = 1 / (1 + Math.exp(-maskData[i]));
-            if (val <= 0.25) {
-                val = 0;
-            } else if (val >= 0.90) {
-                val = 1;
-            } else {
-                const t = (val - 0.25) / (0.90 - 0.25);
-                val = t * t * (3 - 2 * t);
-            }
-            maskBuffer[i] = Math.round(val * 255);
-        }
+            childProcess.on('error', (err) => {
+                clearInterval(inferTimer);
+                reject(err);
+            });
+        });
 
-        sendEvent(92, 'Resizing mask & compositing RGBA...', `Upscaling mask to original dimensions ${origW}x${origH} & merging alpha channel...`);
-        const { data: alphaMask } = await sharp(maskBuffer, {
-            raw: { width: 1024, height: 1024, channels: 1 }
-        })
-        .resize(origW, origH, { fit: 'fill' })
-        .toColourspace('b-w')
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-
-        const { data: origRgb } = await sharp(inputPath)
-            .removeAlpha()
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-
-        const finalRgba = Buffer.alloc(origW * origH * 4);
-        for (let i = 0; i < origW * origH; i++) {
-            finalRgba[i * 4] = origRgb[i * 3];
-            finalRgba[i * 4 + 1] = origRgb[i * 3 + 1];
-            finalRgba[i * 4 + 2] = origRgb[i * 3 + 2];
-            finalRgba[i * 4 + 3] = alphaMask[i];
-        }
-
-        sendEvent(97, 'Encoding transparent PNG...', `Writing final transparent PNG: ${outputPath}`);
-        await sharp(finalRgba, {
-            raw: { width: origW, height: origH, channels: 4 }
-        })
-        .png()
-        .toFile(outputPath);
+        await runWorker();
+        sendEvent(92, 'Compositing alpha channel...', 'Merging alpha mask natively via libvips joinChannel...');
 
         const durationMs = Date.now() - startTime;
         sendEvent(100, 'Complete!', `Background removed successfully in ${(durationMs / 1000).toFixed(2)} seconds.`);
