@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-09-18
+
+### Security
+- **Sanitized Telemetry Endpoint (`/api/status`):** Redacted internal server metadata, backend proxy URLs, internal listening ports, memory allocations, process uptime, and local model file paths from public JSON responses to prevent reconnaissance and information disclosure.
+
+---
+
 ## [1.1.0] - 2026-09-18
 
 ### Added

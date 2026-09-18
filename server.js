@@ -128,69 +128,39 @@ app.get('/tmp/:name', (req, res) => {
 });
 
 
-// Real-Time System Status API (Uptime Kuma style JSON)
+// Real-Time System Status API (Sanitized Public Health Monitor)
 const statusRatePerIp = rateLimit({ windowMs: 60 * 1000, max: 30, name: 'status-ip' });
 app.get('/api/status', statusRatePerIp, async (req, res) => {
     const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
 
-    const webStatus = {
-        status: 'online',
-        uptime: Math.round(process.uptime()),
-        memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
-        timestamp: Date.now()
-    };
-
-    let backendStatus = {
-        mode: BACKEND_URL ? 'decoupled' : 'standalone',
-        url: BACKEND_URL || 'local-worker',
-        status: 'unknown',
-        latencyMs: null,
-        details: null
-    };
+    let isBackendHealthy = false;
 
     if (BACKEND_URL) {
-        const beStart = Date.now();
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
         try {
             const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/health`, { signal: controller.signal });
-            const beLatency = Date.now() - beStart;
-            if (resp.ok) {
-                const data = await resp.json();
-                backendStatus.status = 'operational';
-                backendStatus.latencyMs = beLatency;
-                backendStatus.details = {
-                    engine: data.engine,
-                    model: data.model,
-                    status: data.status
-                };
-            } else {
-                backendStatus.status = 'degraded';
-                backendStatus.error = `HTTP ${resp.status}`;
-            }
-        } catch (err) {
-            backendStatus.status = err.name === 'AbortError' ? 'degraded' : 'offline';
-            backendStatus.error = err.name === 'AbortError' ? 'Timeout' : 'Connection failed';
+            isBackendHealthy = resp.ok;
+        } catch (_) {
+            isBackendHealthy = false;
         } finally {
             clearTimeout(timeoutId);
         }
     } else {
-        const modelExists = fs.existsSync(MODEL_PATH);
-        backendStatus.status = modelExists ? 'operational' : 'error';
-        backendStatus.latencyMs = 0;
-        backendStatus.details = {
-            engine: 'Isolated Worker (libvips + ORT)',
-            model: path.basename(MODEL_PATH),
-            modelExists
-        };
+        isBackendHealthy = fs.existsSync(MODEL_PATH);
     }
 
-    const isAllOperational = webStatus.status === 'online' && backendStatus.status === 'operational';
+    const systemStatus = isBackendHealthy ? 'operational' : 'degraded';
 
     res.json({
-        system: isAllOperational ? 'operational' : (backendStatus.status === 'offline' ? 'major_outage' : 'degraded'),
-        web: webStatus,
-        backend: backendStatus,
+        status: 'ok',
+        system: systemStatus,
+        web: {
+            status: 'online'
+        },
+        backend: {
+            status: isBackendHealthy ? 'operational' : 'offline'
+        },
         timestamp: Date.now()
     });
 });

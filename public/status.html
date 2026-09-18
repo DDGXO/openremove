@@ -144,13 +144,9 @@
                         <span class="text-gray-400">Response Latency</span>
                         <span id="webLatency" class="font-mono font-semibold text-gray-800">-- ms</span>
                     </div>
-                    <div class="flex justify-between py-1 border-b border-gray-100">
-                        <span class="text-gray-400">Gateway Uptime</span>
-                        <span id="webUptime" class="font-mono text-gray-800">--</span>
-                    </div>
                     <div class="flex justify-between py-1">
-                        <span class="text-gray-400">Gateway RAM</span>
-                        <span id="webMemory" class="font-mono text-gray-800">-- MB</span>
+                        <span class="text-gray-400">Service Status</span>
+                        <span id="webStateText" class="font-semibold text-emerald-600">Online</span>
                     </div>
                 </div>
             </div>
@@ -170,19 +166,15 @@
                 <div class="space-y-3 text-xs text-gray-600">
                     <div class="flex justify-between py-1 border-b border-gray-100">
                         <span class="text-gray-400">Engine Status</span>
-                        <span id="backendMode" class="font-mono text-gray-800">--</span>
+                        <span id="backendMode" class="font-mono font-semibold text-gray-800">Engine Active</span>
                     </div>
                     <div class="flex justify-between py-1 border-b border-gray-100">
-                        <span class="text-gray-400">Engine Latency</span>
-                        <span id="backendLatency" class="font-mono font-semibold text-gray-800">-- ms</span>
-                    </div>
-                    <div class="flex justify-between py-1 border-b border-gray-100">
-                        <span class="text-gray-400">Active Model</span>
-                        <span id="backendModel" class="font-mono text-gray-800">--</span>
+                        <span class="text-gray-400">AI Model</span>
+                        <span class="font-mono text-gray-800">BRIA RMBG-1.4</span>
                     </div>
                     <div class="flex justify-between py-1">
-                        <span class="text-gray-400">Engine Baseline RAM</span>
-                        <span id="backendMemory" class="font-mono text-gray-800">-- MB</span>
+                        <span class="text-gray-400">Inference Architecture</span>
+                        <span class="font-mono text-gray-800">ONNX Runtime (1024x1024)</span>
                     </div>
                 </div>
             </div>
@@ -232,15 +224,16 @@
                 
                 // Update Web Gateway
                 document.getElementById('webLatency').textContent = `${clientLatency} ms`;
-                document.getElementById('webUptime').textContent = formatUptime(data.web.uptime);
-                document.getElementById('webMemory').textContent = `${data.web.memoryMb} MB`;
+                const webState = document.getElementById('webStateText');
+                if (webState) {
+                    webState.textContent = data.web && data.web.status === 'online' ? 'Online' : 'Offline';
+                    webState.className = data.web && data.web.status === 'online' ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600';
+                }
 
                 // Update Backend
-                const be = data.backend;
-                document.getElementById('backendMode').textContent = be.status === 'operational' ? 'Engine Active' : (be.status === 'degraded' ? 'Engine Degraded' : 'Engine Offline');
-                document.getElementById('backendLatency').textContent = be.latencyMs !== null ? `${be.latencyMs} ms` : 'N/A';
-                document.getElementById('backendModel').textContent = be.details && be.details.model ? be.details.model : (be.details && be.details.engine ? be.details.engine : 'model.onnx');
-                document.getElementById('backendMemory').textContent = be.details && be.details.memoryMb ? `${be.details.memoryMb} MB` : 'Dynamic';
+                const be = data.backend || {};
+                const isOp = be.status === 'operational';
+                document.getElementById('backendMode').textContent = isOp ? 'Engine Active' : (be.status === 'degraded' ? 'Engine Degraded' : 'Engine Offline');
 
                 // Update Badges & Banner
                 const overallBanner = document.getElementById('overallBanner');

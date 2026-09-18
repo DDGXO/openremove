@@ -1,6 +1,6 @@
 {
   "name": "openremove",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "High-performance, offline AI background removal web app and REST API powered by BRIA RMBG-1.4 and ONNX Runtime.",
   "main": "server.js",
   "scripts": {
