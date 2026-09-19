@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.4] - 2026-09-19
+
+### Documentation & Clarification
+- **Privacy Policy & Public Web Service Scope:** Explicitly separated privacy guarantees for public web service (`openremove.dgxohq.com` with HTTPS, isolated sandbox, and 30-min TTL sweeper) and offline self-hosted deployments.
+- **API Reference Alignment:** Synchronized REST documentation with production canonical domain and verified supported MIME formats (`image/jpeg`, `image/png`, `image/webp`, `image/gif`, `image/bmp`).
+
+---
+
 ## [1.1.3] - 2026-09-19
 
 ### Added

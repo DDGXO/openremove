@@ -106,31 +106,37 @@
                     <svg class="w-6 h-6 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                     </svg>
-                    <h2 class="text-base font-bold text-emerald-950">100% Self-Contained Local Execution</h2>
+                    <h2 class="text-base font-bold text-emerald-950">Zero Third-Party AI APIs & No External Cloud Data Sharing</h2>
                 </div>
                 <p class="text-xs text-emerald-800 leading-relaxed">
-                    OpenRemove does not connect to any external cloud APIs, tracking servers, or telemetry endpoints. All neural network weights run locally on your self-hosted host machine using ONNX Runtime.
+                    OpenRemove never connects to or proxies your images through third-party cloud APIs. All AI segmentation models run directly on private on-premise infrastructure using ONNX Runtime.
                 </p>
             </div>
 
             <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
-                <h2 class="text-sm font-bold text-gray-900 mb-2">Zero Data Retention</h2>
+                <h2 class="text-sm font-bold text-gray-900 mb-2">Public Web Service & Ephemeral Storage (TTL)</h2>
+                <p class="text-xs text-gray-600 leading-relaxed mb-2">
+                    When using the public web service at <code>openremove.dgxohq.com</code>:
+                </p>
+                <ul class="text-xs text-gray-600 space-y-1.5 list-disc list-inside">
+                    <li>Your images are transmitted securely over HTTPS/TLS directly to our private engine.</li>
+                    <li>Uploaded files and transparent PNG results are stored in an isolated, sandboxed directory solely to allow you to download them.</li>
+                    <li>An automated background retention sweeper <strong>permanently deletes all temporary files and job metadata after 30 minutes</strong>.</li>
+                    <li>We do not index, retain, train on, or monetize your images.</li>
+                </ul>
+            </div>
+
+            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
+                <h2 class="text-sm font-bold text-gray-900 mb-2">Self-Hosted & Air-Gapped Local Deployments</h2>
                 <p class="text-xs text-gray-600 leading-relaxed">
-                    Images uploaded for processing are processed in memory and written temporarily only for the duration of the request. No images are indexed, trained on, or shared.
+                    When self-hosting OpenRemove on your own workstation or private intranet server, 100% of execution occurs locally. No internet connection is required after setup, ensuring absolute privacy for sensitive enterprise workflows.
                 </p>
             </div>
 
             <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
-                <h2 class="text-sm font-bold text-gray-900 mb-2">No Tracking & No Cookies</h2>
+                <h2 class="text-sm font-bold text-gray-900 mb-2">No Tracking, No Advertising, & No Cookies</h2>
                 <p class="text-xs text-gray-600 leading-relaxed">
-                    OpenRemove does not set any advertising, tracking, or cross-site tracking cookies. We collect zero user fingerprints, IP tracking logs, or analytics.
-                </p>
-            </div>
-
-            <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
-                <h2 class="text-sm font-bold text-gray-900 mb-2">Enterprise & Offline Air-Gapped Ready</h2>
-                <p class="text-xs text-gray-600 leading-relaxed">
-                    Because all dependencies and ONNX models are stored locally, OpenRemove can be operated inside air-gapped private intranet environments without internet connectivity.
+                    OpenRemove does not set any advertising, tracking, or cross-site profiling cookies. We collect zero user fingerprints, behavioral trackers, or analytics scripts.
                 </p>
             </div>
 
