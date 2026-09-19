@@ -109,7 +109,7 @@
                     <span class="font-mono text-xs font-bold text-gray-900">/ping</span>
                 </div>
                 <p class="text-xs text-gray-600 mb-3">Healthcheck endpoint to verify server status and uptime.</p>
-                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X GET http://localhost:3000/ping</pre>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X GET https://openremove.dgxohq.com/ping</pre>
             </div>
 
             <!-- Upload Endpoint -->
@@ -119,7 +119,7 @@
                     <span class="font-mono text-xs font-bold text-gray-900">/api/upload</span>
                 </div>
                 <p class="text-xs text-gray-600 mb-3">Upload an image file (`image` form field, max 25MB). Returns a `jobId` for SSE streaming.</p>
-                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X POST http://localhost:3000/api/upload \
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X POST https://openremove.dgxohq.com/api/upload \
   -F "image=@photo.jpg"</pre>
             </div>
 
@@ -130,16 +130,16 @@
                     <span class="font-mono text-xs font-bold text-gray-900">/api/process-stream/:jobId</span>
                 </div>
                 <p class="text-xs text-gray-600 mb-3">Server-Sent Events (SSE) stream for real-time inference progress and result URL.</p>
-                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -N http://localhost:3000/api/process-stream/YOUR_JOB_ID</pre>
+                <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -N https://openremove.dgxohq.com/api/process-stream/YOUR_JOB_ID</pre>
             </div>
 
-            <!-- Dedicated Inference Engine Endpoint -->
+            <!-- Self-Hosted Direct Inference Endpoint -->
             <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
                 <div class="flex items-center gap-2 mb-3">
                     <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-mono text-[11px] font-bold">POST</span>
-                    <span class="font-mono text-xs font-bold text-gray-900">http://localhost:5000/inference</span>
+                    <span class="font-mono text-xs font-bold text-gray-900">/inference (Local Engine Only)</span>
                 </div>
-                <p class="text-xs text-gray-600 mb-3">Direct synchronous inference endpoint returning a raw transparent PNG buffer.</p>
+                <p class="text-xs text-gray-600 mb-3">Direct synchronous inference endpoint for self-hosted backend engines, returning a raw transparent PNG buffer.</p>
                 <pre class="bg-gray-900 text-gray-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto">curl -X POST http://localhost:5000/inference \
   -F "image=@photo.jpg" \
   --output result.png</pre>
@@ -149,9 +149,9 @@
             <div class="p-6 bg-gray-50/80 rounded-2xl border border-gray-200">
                 <h3 class="text-xs font-bold text-gray-900 mb-2">API Limits & Data Safety</h3>
                 <ul class="text-xs text-gray-600 space-y-1.5 list-disc list-inside">
-                    <li>Max payload size: 25 MB.</li>
-                    <li>Supported MIME types: <code>image/png</code>, <code>image/jpeg</code>, <code>image/webp</code>, <code>image/tiff</code>.</li>
-                    <li>Zero cloud dependencies: images are never sent over public networks.</li>
+                    <li>Max payload size: 25 MB (max 40 MP image resolution).</li>
+                    <li>Supported MIME types: <code>image/jpeg</code>, <code>image/png</code>, <code>image/webp</code>, <code>image/gif</code>, <code>image/bmp</code>.</li>
+                    <li>Zero 3rd-party cloud dependencies: images are processed directly on-premise without third-party APIs or external data sharing.</li>
                 </ul>
             </div>
 
