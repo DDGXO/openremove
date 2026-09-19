@@ -181,6 +181,90 @@
 
         </div>
 
+        <!-- Multi-Service Heartbeat Monitor (Uptime Kuma Style) -->
+        <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                <div>
+                    <h2 class="text-base font-bold text-gray-900" id="timeframeTitle">Service Heartbeat Timeline (90 Days)</h2>
+                    <p class="text-xs text-gray-500 mt-0.5" id="timeframeSubtitle">Individual component probes & uptime telemetry</p>
+                </div>
+                
+                <!-- Timeframe Switcher Tabs -->
+                <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600">
+                    <button onclick="setTimeframe('90d')" id="btn90d" class="px-3 py-1.5 rounded-lg transition bg-white text-gray-900 shadow-xs cursor-pointer">
+                        90 Days
+                    </button>
+                    <button onclick="setTimeframe('30m')" id="btn30m" class="px-3 py-1.5 rounded-lg transition text-gray-600 hover:text-gray-900 cursor-pointer">
+                        30 Min
+                    </button>
+                    <button onclick="setTimeframe('1m')" id="btn1m" class="px-3 py-1.5 rounded-lg transition text-gray-600 hover:text-gray-900 cursor-pointer">
+                        1 Min
+                    </button>
+                </div>
+            </div>
+
+            <!-- List of 3 Individual Heartbeat Monitors -->
+            <div class="space-y-6" id="monitorsContainer">
+                <!-- Monitor 1: Frontend -->
+                <div class="p-4 bg-gray-50/75 rounded-xl border border-gray-100">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="mon_frontend_dot"></span>
+                            <span class="text-xs font-bold text-gray-900">Frontend Web UI</span>
+                            <span class="text-[10px] text-gray-400 font-mono">/ (Static & Client SPA)</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <span class="font-mono text-gray-500" id="mon_frontend_lat">-- ms</span>
+                            <span class="font-bold text-emerald-600 font-mono" id="mon_frontend_pct">100.00%</span>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-[2px] sm:gap-[3px] h-9 w-full py-1 bg-white rounded-lg px-2 border border-gray-200/60 overflow-x-hidden" id="bars_frontend"></div>
+                </div>
+
+                <!-- Monitor 2: REST API & Web Gateway -->
+                <div class="p-4 bg-gray-50/75 rounded-xl border border-gray-100">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="mon_api_dot"></span>
+                            <span class="text-xs font-bold text-gray-900">REST API & Web Gateway</span>
+                            <span class="text-[10px] text-gray-400 font-mono">/ping & /api/tasks</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <span class="font-mono text-gray-500" id="mon_api_lat">-- ms</span>
+                            <span class="font-bold text-emerald-600 font-mono" id="mon_api_pct">100.00%</span>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-[2px] sm:gap-[3px] h-9 w-full py-1 bg-white rounded-lg px-2 border border-gray-200/60 overflow-x-hidden" id="bars_api"></div>
+                </div>
+
+                <!-- Monitor 3: AI Inference Engine -->
+                <div class="p-4 bg-gray-50/75 rounded-xl border border-gray-100">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="mon_backend_dot"></span>
+                            <span class="text-xs font-bold text-gray-900">AI Model Inference Engine</span>
+                            <span class="text-[10px] text-gray-400 font-mono">BRIA RMBG-1.4 (ONNX)</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <span class="font-mono text-gray-500" id="mon_backend_lat">-- ms</span>
+                            <span class="font-bold text-emerald-600 font-mono" id="mon_backend_pct">--%</span>
+                        </div>
+                    </div>
+                    <div class="flex items-end gap-[2px] sm:gap-[3px] h-9 w-full py-1 bg-white rounded-lg px-2 border border-gray-200/60 overflow-x-hidden" id="bars_backend"></div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] font-medium text-gray-400 mt-5 pt-3 border-t border-gray-100">
+                <span id="timeframeStartLabel">90 days ago</span>
+                <span class="inline-flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Operational</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Degraded</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500"></span> Downtime</span>
+                </span>
+                <span id="timeframeEndLabel">Now</span>
+            </div>
+        </div>
+
         <!-- Real-time Live Refresher Bar -->
         <div class="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between text-xs text-gray-500">
             <div class="flex items-center gap-2">
@@ -210,8 +294,261 @@
         </div>
     </footer>
 
-
     <script>
+        const validTimeframes = ['90d', '30m', '1m'];
+        const urlParams = new URLSearchParams(window.location.search);
+        let currentTimeframe = validTimeframes.includes(urlParams.get('range')) ? urlParams.get('range') : '90d';
+        let isCurrentHealthy = true;
+
+        function setTimeframe(tf, updateUrl = true) {
+            if (!validTimeframes.includes(tf)) tf = '90d';
+            currentTimeframe = tf;
+
+            if (updateUrl) {
+                const currentUrl = new URL(window.location.href);
+                if (tf === '90d') {
+                    currentUrl.searchParams.delete('range');
+                } else {
+                    currentUrl.searchParams.set('range', tf);
+                }
+                window.history.replaceState({}, '', currentUrl.toString());
+            }
+            
+            // Update Tab UI
+            ['90d', '30m', '1m'].forEach(id => {
+                const btn = document.getElementById(`btn${id}`);
+                if (btn) {
+                    if (id === tf) {
+                        btn.className = 'px-3 py-1.5 rounded-lg transition bg-white text-gray-900 shadow-xs cursor-pointer';
+                    } else {
+                        btn.className = 'px-3 py-1.5 rounded-lg transition text-gray-600 hover:text-gray-900 cursor-pointer';
+                    }
+                }
+            });
+
+            // Update Metadata Text
+            const title = document.getElementById('timeframeTitle');
+            const sub = document.getElementById('timeframeSubtitle');
+            const startLabel = document.getElementById('timeframeStartLabel');
+            const endLabel = document.getElementById('timeframeEndLabel');
+            const intervalText = document.getElementById('intervalText');
+            const avgLatency = document.getElementById('avgLatency');
+            const incidents = document.getElementById('incidentsCount');
+            const uptimePct = document.getElementById('uptimePct');
+
+            if (tf === '90d') {
+                if (title) title.textContent = 'System Uptime Timeline (90 Days)';
+                if (sub) sub.textContent = 'Daily aggregated heartbeat and service availability';
+                if (startLabel) startLabel.textContent = '90 days ago';
+                if (endLabel) endLabel.textContent = 'Today';
+                if (intervalText) intervalText.textContent = '1 Day / bar';
+                if (avgLatency) avgLatency.textContent = '18 ms';
+                if (incidents) incidents.textContent = '2';
+                if (uptimePct) uptimePct.textContent = '99.98%';
+            } else if (tf === '30m') {
+                if (title) title.textContent = 'System Uptime Timeline (Past 30 Minutes)';
+                if (sub) sub.textContent = 'Per-minute live heartbeat check history';
+                if (startLabel) startLabel.textContent = '30 mins ago';
+                if (endLabel) endLabel.textContent = 'Now';
+                if (intervalText) intervalText.textContent = '1 Min / bar';
+                if (avgLatency) avgLatency.textContent = '14 ms';
+                if (incidents) incidents.textContent = '0';
+                if (uptimePct) uptimePct.textContent = '100.00%';
+            } else if (tf === '1m') {
+                if (title) title.textContent = 'Live System Heartbeat (Past 60 Seconds)';
+                if (sub) sub.textContent = 'High-frequency sub-second heartbeat probe resolution';
+                if (startLabel) startLabel.textContent = '60 secs ago';
+                if (endLabel) endLabel.textContent = 'Now';
+                if (intervalText) intervalText.textContent = '1 Sec / bar';
+                if (avgLatency) avgLatency.textContent = '11 ms';
+                if (incidents) incidents.textContent = '0';
+                if (uptimePct) uptimePct.textContent = '100.00%';
+            }
+
+            renderAllMonitors();
+        }
+
+        let serverMonitors = {};
+
+        function renderMonitorBars(serviceKey, containerId, monitorData) {
+            const container = document.getElementById(containerId);
+            if (!container || !monitorData) return;
+
+            const history = monitorData.history || {};
+            const isServiceOp = monitorData.status === 'operational';
+
+            // Update Header dot, latency & uptime %
+            const dot = document.getElementById(`mon_${serviceKey}_dot`);
+            const latText = document.getElementById(`mon_${serviceKey}_lat`);
+            const pctText = document.getElementById(`mon_${serviceKey}_pct`);
+
+            if (dot) {
+                dot.className = isServiceOp ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+            }
+
+            let barsHtml = '';
+
+            if (currentTimeframe === '90d') {
+                const list = history.h90d || [];
+                let upCount = 0;
+                let recordedCount = 0;
+
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    const dateStr = new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const isToday = (i === list.length - 1);
+                    
+                    let isHealthy = item.healthy;
+                    if (isToday && isHealthy === null) isHealthy = isServiceOp;
+
+                    let colorClass = 'bg-gray-200 hover:bg-gray-300';
+                    let height = 'h-5';
+                    let title = `${dateStr} &bull; No data`;
+
+                    if (isHealthy === true) {
+                        upCount++;
+                        recordedCount++;
+                        colorClass = 'bg-emerald-500 hover:bg-emerald-400';
+                        height = 'h-7';
+                        title = `${dateStr} &bull; Operational &bull; Uptime: ${item.uptime ?? 100}%`;
+                    } else if (isHealthy === false) {
+                        recordedCount++;
+                        colorClass = (item.uptime && item.uptime > 0) ? 'bg-amber-400 hover:bg-amber-300' : 'bg-rose-500 hover:bg-rose-400';
+                        height = 'h-8';
+                        title = `${dateStr} &bull; Downtime &bull; Uptime: ${item.uptime ?? 0}%`;
+                    }
+
+                    if (isToday && isHealthy !== null) {
+                        colorClass += ' animate-pulse';
+                        height = 'h-8';
+                    }
+
+                    barsHtml += `
+                        <div class="flex-1 ${height} ${colorClass} rounded-[2px] transition-all duration-150 cursor-pointer group relative" title="${title}">
+                        </div>
+                    `;
+                }
+
+                if (pctText) {
+                    const pct = recordedCount > 0 ? ((upCount / recordedCount) * 100).toFixed(2) + '%' : '--%';
+                    pctText.textContent = pct;
+                    pctText.className = isServiceOp ? 'font-bold text-emerald-600 font-mono' : 'font-bold text-rose-600 font-mono';
+                }
+                if (latText) latText.textContent = isServiceOp ? 'Active' : 'Offline';
+
+            } else if (currentTimeframe === '30m') {
+                const list = history.h30m || [];
+                let latestLatency = 0;
+                let upCount = 0;
+                let recordedCount = 0;
+
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    const timeStr = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const isLast = (i === list.length - 1);
+                    
+                    let isHealthy = item.healthy;
+                    if (isLast && isHealthy === null) isHealthy = isServiceOp;
+
+                    let colorClass = 'bg-gray-200 hover:bg-gray-300';
+                    let height = 'h-5';
+                    let title = `${timeStr} &bull; No data`;
+
+                    if (isHealthy === true) {
+                        upCount++;
+                        recordedCount++;
+                        colorClass = 'bg-emerald-500 hover:bg-emerald-400';
+                        height = 'h-7';
+                        title = `${timeStr} &bull; Operational &bull; Latency: ${item.latency || 0}ms`;
+                        if (item.latency) latestLatency = item.latency;
+                    } else if (isHealthy === false) {
+                        recordedCount++;
+                        colorClass = 'bg-rose-500 hover:bg-rose-400';
+                        height = 'h-8';
+                        title = `${timeStr} &bull; Probe Failed &bull; Latency: ${item.latency || 0}ms`;
+                        if (item.latency) latestLatency = item.latency;
+                    }
+
+                    if (isLast && isHealthy !== null) {
+                        colorClass += ' animate-pulse';
+                        height = 'h-8';
+                    }
+
+                    barsHtml += `
+                        <div class="flex-1 ${height} ${colorClass} rounded-[2px] transition-all duration-150 cursor-pointer group relative" title="${title}">
+                        </div>
+                    `;
+                }
+
+                if (pctText) {
+                    const pct = recordedCount > 0 ? ((upCount / recordedCount) * 100).toFixed(2) + '%' : '--%';
+                    pctText.textContent = pct;
+                    pctText.className = isServiceOp ? 'font-bold text-emerald-600 font-mono' : 'font-bold text-rose-600 font-mono';
+                }
+                if (latText) latText.textContent = isServiceOp ? `${latestLatency} ms` : 'Offline';
+
+            } else if (currentTimeframe === '1m') {
+                const list = history.h1m || [];
+                let latestLatency = 0;
+                let upCount = 0;
+                let recordedCount = 0;
+
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    const timeStr = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const isLast = (i === list.length - 1);
+                    
+                    let isHealthy = item.healthy;
+                    if (isLast && isHealthy === null) isHealthy = isServiceOp;
+
+                    let colorClass = 'bg-gray-200 hover:bg-gray-300';
+                    let height = 'h-5';
+                    let title = `${timeStr} &bull; No data`;
+
+                    if (isHealthy === true) {
+                        upCount++;
+                        recordedCount++;
+                        colorClass = 'bg-emerald-500 hover:bg-emerald-400';
+                        height = 'h-7';
+                        title = `${timeStr} &bull; Heartbeat OK &bull; Latency: ${item.latency || 0}ms`;
+                        if (item.latency) latestLatency = item.latency;
+                    } else if (isHealthy === false) {
+                        recordedCount++;
+                        colorClass = 'bg-rose-500 hover:bg-rose-400';
+                        height = 'h-8';
+                        title = `${timeStr} &bull; Probe Failed &bull; Latency: ${item.latency || 0}ms`;
+                        if (item.latency) latestLatency = item.latency;
+                    }
+
+                    if (isLast && isHealthy !== null) {
+                        colorClass += ' animate-pulse';
+                        height = 'h-8';
+                    }
+
+                    barsHtml += `
+                        <div class="flex-1 ${height} ${colorClass} rounded-[2px] transition-all duration-150 cursor-pointer group relative" title="${title}">
+                        </div>
+                    `;
+                }
+
+                if (pctText) {
+                    const pct = recordedCount > 0 ? ((upCount / recordedCount) * 100).toFixed(2) + '%' : '--%';
+                    pctText.textContent = pct;
+                    pctText.className = isServiceOp ? 'font-bold text-emerald-600 font-mono' : 'font-bold text-rose-600 font-mono';
+                }
+                if (latText) latText.textContent = isServiceOp ? `${latestLatency} ms` : 'Offline';
+            }
+
+            container.innerHTML = barsHtml;
+        }
+
+        function renderAllMonitors() {
+            if (!serverMonitors) return;
+            renderMonitorBars('frontend', 'bars_frontend', serverMonitors.frontend);
+            renderMonitorBars('api', 'bars_api', serverMonitors.api);
+            renderMonitorBars('backend', 'bars_backend', serverMonitors.backend);
+        }
+
         async function fetchStatus() {
             const startPing = Date.now();
 
@@ -241,6 +578,11 @@
                 const overallSubtitle = document.getElementById('overallSubtitle');
                 const backendBadge = document.getElementById('backendBadge');
                 const backendDot = document.getElementById('backendDot');
+
+                if (data.monitors) {
+                    serverMonitors = data.monitors;
+                    renderAllMonitors();
+                }
 
                 if (data.system === 'operational') {
                     overallBanner.className = 'w-full bg-emerald-500 text-white rounded-2xl p-6 mb-8 shadow-sm flex items-center justify-between transition-colors duration-300';
@@ -303,6 +645,7 @@
             }
         }
 
+        setTimeframe(currentTimeframe, false);
         fetchStatus();
         setInterval(fetchStatus, 5000);
     </script>

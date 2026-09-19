@@ -20,4 +20,5 @@ Disallow: /tmp/
 Disallow: /api/
 
 # Sitemap
-Sitemap: http://localhost:3000/sitemap.xml
+Sitemap: https://openremove.dgxohq.com/sitemap.xml
+

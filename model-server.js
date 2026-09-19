@@ -102,15 +102,22 @@ app.post('/inference', upload.single('image'), async (req, res) => {
             .raw()
             .toBuffer({ resolveWithObject: true });
 
+        const inputName = sess.inputNames[0];
+        const isImageNetNorm = inputName === 'pixel_values';
+        const mean = [0.485, 0.456, 0.406];
+        const std = [0.229, 0.224, 0.225];
+
         const floatArray = new Float32Array(3 * 1024 * 1024);
         for (let c = 0; c < 3; c++) {
+            const m = isImageNetNorm ? mean[c] : 0.5;
+            const s = isImageNetNorm ? std[c] : 1.0;
+            const offset = c * 1024 * 1024;
             for (let i = 0; i < 1024 * 1024; i++) {
-                floatArray[c * 1024 * 1024 + i] = (rawBuffer[i * 3 + c] / 255.0) - 0.5;
+                floatArray[offset + i] = ((rawBuffer[i * 3 + c] / 255.0) - m) / s;
             }
         }
 
         const inputTensor = new ort.Tensor('float32', floatArray, [1, 3, 1024, 1024]);
-        const inputName = sess.inputNames[0];
 
         const results = await sess.run({ [inputName]: inputTensor });
         const maskData = results[sess.outputNames[0]].data;

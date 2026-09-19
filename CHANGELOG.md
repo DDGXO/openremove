@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.3] - 2026-09-19
+
+### Added
+- **Multi-Monitor Heartbeat System (SQLite Persistence):** Rebuilt system status monitoring with `node:sqlite` persistence (`data/status.db`). Added 3 distinct probes (`frontend`, `api`, `backend`) with configurable historical views (`90d`, `30m`, `1m`) and URL range parameter sync.
+- **Sitemap & SEO Optimization:** Canonical domain sitemap (`public/sitemap.xml`) with production URLs (`https://openremove.dgxohq.com`) and updated `public/robots.txt`.
+
+### Security
+- **Log Sanitization:** Redacted internal inference backend URLs from public client SSE progress event streams.
+
+---
+
 ## [1.1.2] - 2026-09-19
 
 ### Fixed

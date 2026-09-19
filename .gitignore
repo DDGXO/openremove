@@ -19,5 +19,8 @@ server.js.bak
 backup/
 *backup*
 docs/internal/
+data/
+*.db
 .DS_Store
 Thumbs.db
+

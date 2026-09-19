@@ -35,13 +35,6 @@ async function run() {
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-        const floatArray = new Float32Array(3 * 1024 * 1024);
-        for (let c = 0; c < 3; c++) {
-            for (let i = 0; i < 1024 * 1024; i++) {
-                floatArray[c * 1024 * 1024 + i] = (rawBuffer[i * 3 + c] / 255.0) - 0.5;
-            }
-        }
-
         const sessionOptions = {
             executionProviders: ['cpu'],
             enableCpuMemArena: false,
@@ -60,8 +53,21 @@ async function run() {
 
         const session = await ort.InferenceSession.create(modelPath, sessionOptions);
         const inputName = session.inputNames[0];
-        const inputTensor = new ort.Tensor('float32', floatArray, [1, 3, 1024, 1024]);
+        const isImageNetNorm = inputName === 'pixel_values';
+        const mean = [0.485, 0.456, 0.406];
+        const std = [0.229, 0.224, 0.225];
 
+        const floatArray = new Float32Array(3 * 1024 * 1024);
+        for (let c = 0; c < 3; c++) {
+            const m = isImageNetNorm ? mean[c] : 0.5;
+            const s = isImageNetNorm ? std[c] : 1.0;
+            const offset = c * 1024 * 1024;
+            for (let i = 0; i < 1024 * 1024; i++) {
+                floatArray[offset + i] = ((rawBuffer[i * 3 + c] / 255.0) - m) / s;
+            }
+        }
+
+        const inputTensor = new ort.Tensor('float32', floatArray, [1, 3, 1024, 1024]);
         const results = await session.run({ [inputName]: inputTensor });
         const outputTensor = results[session.outputNames[0]];
         const maskData = outputTensor.data;
