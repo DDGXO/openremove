@@ -130,22 +130,11 @@ app.post('/inference', upload.single('image'), async (req, res) => {
         }
         const range = maxVal - minVal || 1;
 
-        const LOW_THRESHOLD = 0.05;  // Suppress background noise / ghosting below 5%
-        const HIGH_THRESHOLD = 0.95; // Ensure clean solid foreground above 95%
-
         const mask1024 = Buffer.alloc(1024 * 1024);
         for (let i = 0; i < maskData.length; i++) {
             const norm = (maskData[i] - minVal) / range;
-            if (norm <= LOW_THRESHOLD) {
-                mask1024[i] = 0;
-            } else if (norm >= HIGH_THRESHOLD) {
-                mask1024[i] = 255;
-            } else {
-                const remapped = (norm - LOW_THRESHOLD) / (HIGH_THRESHOLD - LOW_THRESHOLD);
-                mask1024[i] = Math.round(remapped * 255);
-            }
+            mask1024[i] = Math.max(0, Math.min(255, Math.round(norm * 255)));
         }
-
 
         const maskOrig = await sharp(mask1024, {
             raw: { width: 1024, height: 1024, channels: 1 }

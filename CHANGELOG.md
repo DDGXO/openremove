@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.5] - 2026-09-28
+
+### Fixed
+- **BRIA RMBG-1.4 Pipeline Alignment:** Removed artificial threshold clamping and restored standard normalization pipeline `(pixel / 255.0 - 0.5) / 1.0` in `model-server.js` and `inference-worker.js`. Eliminates subject boundary clipping and ensures complete foreground mask retention.
+
+
+---
+
 ## [1.1.4] - 2026-09-19
 
 ### Documentation & Clarification
