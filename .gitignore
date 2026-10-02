@@ -9,9 +9,11 @@ tmp/*
 .env
 .env.local
 
-# Standard AI Model Weights (Large binary >900MB, downloaded via Hugging Face)
-models/standard/*.onnx
-!models/standard/.gitkeep
+# AI Model Weights (Large binary ONNX weights, downloaded via scripts/HuggingFace)
+models/*.onnx
+models/**/*.onnx
+!models/.gitkeep
+!models/*/.gitkeep
 
 # Backups and OS artifacts
 *.bak

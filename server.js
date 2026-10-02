@@ -30,7 +30,16 @@ const BASE_DIR = path.resolve(__dirname);
 const TMP_DIR = path.join(BASE_DIR, 'tmp');
 const OUTPUT_DIR = TMP_DIR;
 const PUBLIC_DIR = path.join(BASE_DIR, 'public');
-const MODEL_PATH = process.env.MODEL_PATH || path.join(BASE_DIR, 'models', 'model.onnx');
+
+const resolveModelPath = (name, fallback) => {
+    const p1 = path.join(BASE_DIR, 'models', name);
+    if (fs.existsSync(p1)) return p1;
+    const p2 = path.join(BASE_DIR, 'models', fallback);
+    if (fs.existsSync(p2)) return p2;
+    return p1;
+};
+const MODEL_PATH = process.env.MODEL_PATH || resolveModelPath('briarmbg.onnx', 'model.onnx');
+const ISNET_MODEL_PATH = process.env.ISNET_MODEL_PATH || resolveModelPath('isnet.onnx', 'isnet-general-use.onnx');
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
@@ -181,37 +190,79 @@ setInterval(async () => {
     insertHeartbeatStmt.run('api', now, apiHealthy ? 1 : 0, apiLatency);
     updateDailyTodayStmt.run('api', todayStr, now, apiHealthy ? 1 : 0, apiHealthy ? 100.0 : 0.0);
 
-    // 3) AI Model Backend Probe (ONNX Runtime engine / remote worker)
+    // 3) AI Model Backend Probe (ONNX Runtime multi-model engine)
     const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
     let backendHealthy = false;
+    let siluetaHealthy = false;
+    let u2netpHealthy = false;
+    let isnetHealthy = false;
+    let rmbgHealthy = false;
+    let ben2Healthy = false;
     let backendLatency = 0;
     const bStart = Date.now();
 
     if (BACKEND_URL) {
         if (activeInferences > 0) {
             backendHealthy = true;
+            siluetaHealthy = true;
+            u2netpHealthy = true;
+            isnetHealthy = true;
+            rmbgHealthy = true;
             backendLatency = 12;
         } else {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
             try {
                 const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/health`, { signal: controller.signal });
                 backendHealthy = resp.ok;
                 backendLatency = Date.now() - bStart;
+                if (resp.ok) {
+                    const healthJson = await resp.json().catch(() => ({}));
+                    siluetaHealthy = !!(healthJson.models?.silueta?.loaded);
+                    u2netpHealthy = !!(healthJson.models?.u2netp?.loaded);
+                    isnetHealthy = !!(healthJson.models?.isnet?.loaded);
+                    rmbgHealthy = !!(healthJson.models?.rmbg?.loaded);
+                    ben2Healthy = !!(healthJson.models?.ben2?.loaded);
+                }
             } catch (_) {
                 backendHealthy = false;
+                siluetaHealthy = false;
+                u2netpHealthy = false;
+                isnetHealthy = false;
+                rmbgHealthy = false;
+                ben2Healthy = false;
                 backendLatency = 0;
             } finally {
                 clearTimeout(timeoutId);
             }
         }
     } else {
-        backendHealthy = fs.existsSync(MODEL_PATH);
+        siluetaHealthy = fs.existsSync(path.join(BASE_DIR, 'models', 'silueta.onnx'));
+        u2netpHealthy = fs.existsSync(path.join(BASE_DIR, 'models', 'u2netp.onnx'));
+        isnetHealthy = fs.existsSync(ISNET_MODEL_PATH);
+        rmbgHealthy = fs.existsSync(MODEL_PATH);
+        ben2Healthy = fs.existsSync(path.join(BASE_DIR, 'models', 'ben2.onnx'));
+        backendHealthy = siluetaHealthy || u2netpHealthy || isnetHealthy || rmbgHealthy || ben2Healthy;
         backendLatency = 5;
     }
 
     insertHeartbeatStmt.run('backend', now, backendHealthy ? 1 : 0, backendLatency);
     updateDailyTodayStmt.run('backend', todayStr, now, backendHealthy ? 1 : 0, backendHealthy ? 100.0 : 0.0);
+
+    insertHeartbeatStmt.run('silueta', now, siluetaHealthy ? 1 : 0, backendLatency);
+    updateDailyTodayStmt.run('silueta', todayStr, now, siluetaHealthy ? 1 : 0, siluetaHealthy ? 100.0 : 0.0);
+
+    insertHeartbeatStmt.run('u2netp', now, u2netpHealthy ? 1 : 0, backendLatency);
+    updateDailyTodayStmt.run('u2netp', todayStr, now, u2netpHealthy ? 1 : 0, u2netpHealthy ? 100.0 : 0.0);
+
+    insertHeartbeatStmt.run('isnet', now, isnetHealthy ? 1 : 0, backendLatency);
+    updateDailyTodayStmt.run('isnet', todayStr, now, isnetHealthy ? 1 : 0, isnetHealthy ? 100.0 : 0.0);
+
+    insertHeartbeatStmt.run('rmbg', now, rmbgHealthy ? 1 : 0, backendLatency);
+    updateDailyTodayStmt.run('rmbg', todayStr, now, rmbgHealthy ? 1 : 0, rmbgHealthy ? 100.0 : 0.0);
+
+    insertHeartbeatStmt.run('ben2', now, ben2Healthy ? 1 : 0, backendLatency);
+    updateDailyTodayStmt.run('ben2', todayStr, now, ben2Healthy ? 1 : 0, ben2Healthy ? 100.0 : 0.0);
 }, 1000);
 
 // Retention cleanup every 10 minutes (keep 2 hours raw data)
@@ -292,16 +343,35 @@ const statusRatePerIp = rateLimit({ windowMs: 60 * 1000, max: 60, name: 'status-
 app.get('/api/status', statusRatePerIp, async (req, res) => {
     const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
     let isBackendHealthy = false;
+    let backendInfo = {
+        models: {
+            silueta: { loaded: false, file: 'silueta.onnx' },
+            u2netp: { loaded: false, file: 'u2netp.onnx' },
+            isnet: { loaded: false, file: path.basename(ISNET_MODEL_PATH) },
+            rmbg: { loaded: false, file: path.basename(MODEL_PATH) },
+            ben2: { loaded: false, file: 'ben2.onnx' }
+        },
+        memoryMb: 0
+    };
 
     if (BACKEND_URL) {
         if (activeInferences > 0) {
             isBackendHealthy = true;
+            backendInfo.models.silueta.loaded = true;
+            backendInfo.models.u2netp.loaded = true;
+            backendInfo.models.isnet.loaded = true;
+            backendInfo.models.rmbg.loaded = true;
         } else {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
             try {
                 const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/health`, { signal: controller.signal });
                 isBackendHealthy = resp.ok;
+                if (resp.ok) {
+                    const healthData = await resp.json().catch(() => ({}));
+                    if (healthData.models) backendInfo.models = healthData.models;
+                    if (healthData.memoryMb) backendInfo.memoryMb = healthData.memoryMb;
+                }
             } catch (_) {
                 isBackendHealthy = false;
             } finally {
@@ -309,7 +379,17 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
             }
         }
     } else {
-        isBackendHealthy = fs.existsSync(MODEL_PATH);
+        const siluetaExists = fs.existsSync(path.join(BASE_DIR, 'models', 'silueta.onnx'));
+        const u2netpExists = fs.existsSync(path.join(BASE_DIR, 'models', 'u2netp.onnx'));
+        const isnetExists = fs.existsSync(ISNET_MODEL_PATH);
+        const rmbgExists = fs.existsSync(MODEL_PATH);
+        const ben2Exists = fs.existsSync(path.join(BASE_DIR, 'models', 'ben2.onnx'));
+        backendInfo.models.silueta.loaded = siluetaExists;
+        backendInfo.models.u2netp.loaded = u2netpExists;
+        backendInfo.models.isnet.loaded = isnetExists;
+        backendInfo.models.rmbg.loaded = rmbgExists;
+        backendInfo.models.ben2.loaded = ben2Exists;
+        isBackendHealthy = siluetaExists || u2netpExists || isnetExists || rmbgExists || ben2Exists;
     }
 
     const systemStatus = isBackendHealthy ? 'operational' : 'offline';
@@ -321,23 +401,82 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
             status: 'online'
         },
         backend: {
-            status: isBackendHealthy ? 'operational' : 'offline'
+            status: isBackendHealthy ? 'operational' : 'offline',
+            memoryMb: backendInfo.memoryMb || 0,
+            models: {
+                silueta: {
+                    name: 'Silueta Ultra-Fast Model',
+                    file: backendInfo.models.silueta?.file || 'silueta.onnx',
+                    status: backendInfo.models.silueta?.loaded ? 'operational' : 'offline',
+                    loaded: !!backendInfo.models.silueta?.loaded
+                },
+                u2netp: {
+                    name: 'U²-NetP Compact Model',
+                    file: backendInfo.models.u2netp?.file || 'u2netp.onnx',
+                    status: backendInfo.models.u2netp?.loaded ? 'operational' : 'offline',
+                    loaded: !!backendInfo.models.u2netp?.loaded
+                },
+                isnet: {
+                    name: 'IS-Net (DIS) Model',
+                    file: backendInfo.models.isnet?.file || path.basename(ISNET_MODEL_PATH),
+                    status: backendInfo.models.isnet?.loaded ? 'operational' : 'offline',
+                    loaded: !!backendInfo.models.isnet?.loaded
+                },
+                rmbg: {
+                    name: 'BRIA RMBG-1.4 Model',
+                    file: backendInfo.models.rmbg?.file || path.basename(MODEL_PATH),
+                    status: backendInfo.models.rmbg?.loaded ? 'operational' : 'offline',
+                    loaded: !!backendInfo.models.rmbg?.loaded
+                },
+                ben2: {
+                    name: 'BEN2 SOTA Engine (Coming Soon)',
+                    file: backendInfo.models.ben2?.file || 'ben2.onnx',
+                    status: backendInfo.models.ben2?.loaded ? 'operational' : 'planned',
+                    loaded: !!backendInfo.models.ben2?.loaded,
+                    comingSoon: true
+                }
+            }
         },
         monitors: {
             frontend: {
                 name: 'Frontend Web App (UI)',
                 status: 'operational',
-                history: getServiceHistory('frontend', 4)
+                history: getServiceHistory('frontend')
             },
             api: {
                 name: 'REST API & Web Gateway',
                 status: 'operational',
-                history: getServiceHistory('api', 8)
+                history: getServiceHistory('api')
             },
-            backend: {
-                name: 'AI Model Inference Engine',
-                status: isBackendHealthy ? 'operational' : 'offline',
-                history: getServiceHistory('backend', 14)
+            silueta: {
+                name: 'Silueta Ultra-Fast Model',
+                status: backendInfo.models.silueta?.loaded ? 'operational' : 'offline',
+                file: backendInfo.models.silueta?.file || 'silueta.onnx',
+                history: getServiceHistory('silueta')
+            },
+            u2netp: {
+                name: 'U²-NetP Compact Model',
+                status: backendInfo.models.u2netp?.loaded ? 'operational' : 'offline',
+                file: backendInfo.models.u2netp?.file || 'u2netp.onnx',
+                history: getServiceHistory('u2netp')
+            },
+            isnet: {
+                name: 'IS-Net (DIS) Segmentation Model',
+                status: backendInfo.models.isnet?.loaded ? 'operational' : 'offline',
+                file: backendInfo.models.isnet?.file || path.basename(ISNET_MODEL_PATH),
+                history: getServiceHistory('isnet')
+            },
+            rmbg: {
+                name: 'BRIA RMBG-1.4 Inference Model',
+                status: backendInfo.models.rmbg?.loaded ? 'operational' : 'offline',
+                file: backendInfo.models.rmbg?.file || path.basename(MODEL_PATH),
+                history: getServiceHistory('rmbg')
+            },
+            ben2: {
+                name: 'BEN2 SOTA Engine (Coming Soon)',
+                status: backendInfo.models.ben2?.loaded ? 'operational' : 'planned',
+                file: backendInfo.models.ben2?.file || 'ben2.onnx',
+                history: getServiceHistory('ben2')
             }
         },
         timestamp: Date.now()
@@ -446,15 +585,134 @@ app.post('/api/upload',
     validateAndFinalizeUpload,
     (req, res) => {
         const jobId = Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 12);
+        const selectedModel = (req.body.model || req.query.model || req.headers['x-model'] || 'isnet').toLowerCase();
         jobs.set(jobId, {
             jobId,
             inputPath: req.file.path,
             filename: req.file.filename,
             size: req.file.size,
+            model: selectedModel,
             createdAt: Date.now()
         });
 
-        return res.json({ status: true, jobId, filename: req.file.filename });
+        return res.json({ status: true, jobId, filename: req.file.filename, model: selectedModel });
+    });
+
+const MODEL_DISPLAY_NAMES = {
+    silueta: 'Silueta Ultra-Fast',
+    u2netp: 'U²-NetP Compact',
+    isnet: 'IS-Net (DIS)',
+    rmbg: 'BRIA RMBG-1.4',
+    ben2: 'BEN2 SOTA Engine'
+};
+const MODEL_FILE_NAMES = {
+    silueta: 'silueta.onnx',
+    u2netp: 'u2netp.onnx',
+    isnet: 'isnet.onnx',
+    rmbg: 'briarmbg.onnx',
+    ben2: 'ben2.onnx'
+};
+
+// Direct Synchronous API Endpoint for Bots & Developers
+app.post(['/api/remove', '/api/remove-bg', '/api/v1/remove'],
+    uploadRatePerIp,
+    uploadRateGlobal,
+    upload.single('image'),
+    validateAndFinalizeUpload,
+    async (req, res) => {
+        const selectedModel = (req.body.model || req.query.model || req.headers['x-model'] || 'isnet').toLowerCase();
+        const inputPath = req.file.path;
+        const outputFilename = `api-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+        const outputPath = path.join(OUTPUT_DIR, outputFilename);
+
+        let slotAcquired = false;
+        const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
+
+        try {
+            await acquireInferenceSlot(outputFilename, () => {});
+            slotAcquired = true;
+
+            let actualModelUsed = MODEL_DISPLAY_NAMES[selectedModel] || selectedModel.toUpperCase();
+            let actualModelFile = MODEL_FILE_NAMES[selectedModel] || `${selectedModel}.onnx`;
+
+            if (BACKEND_URL) {
+                const fileBuf = fs.readFileSync(inputPath);
+                const form = new FormData();
+                form.append('image', new Blob([fileBuf]), req.file.filename);
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+                let resp;
+                try {
+                    resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference?model=${encodeURIComponent(selectedModel)}`, {
+                        method: 'POST',
+                        body: form,
+                        signal: controller.signal
+                    });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+
+                if (!resp.ok) {
+                    const errJson = await resp.json().catch(() => ({}));
+                    throw new Error(errJson.error || `Model Server returned HTTP ${resp.status}`);
+                }
+
+                const headerModelKey = resp.headers.get('x-model-used');
+                const headerModelFile = resp.headers.get('x-model-file');
+                if (headerModelKey) actualModelUsed = MODEL_DISPLAY_NAMES[headerModelKey.toLowerCase()] || headerModelKey;
+                if (headerModelFile) actualModelFile = headerModelFile;
+
+                const arrayBuf = await resp.arrayBuffer();
+                fs.writeFileSync(outputPath, Buffer.from(arrayBuf));
+            } else {
+                const workerPath = path.join(BASE_DIR, 'inference-worker.js');
+                const targetModelFile = selectedModel === 'rmbg' ? MODEL_PATH : ISNET_MODEL_PATH;
+
+                if (!fs.existsSync(targetModelFile)) {
+                    throw new Error(`Model weight file for [${selectedModel.toUpperCase()}] not found: ${targetModelFile}`);
+                }
+
+                await new Promise((resolve, reject) => {
+                    const child = spawn(process.execPath, [
+                        '--expose-gc',
+                        '--max-old-space-size=1536',
+                        workerPath,
+                        inputPath,
+                        outputPath,
+                        targetModelFile
+                    ]);
+                    let stderr = '';
+                    child.stderr.on('data', (d) => { stderr += d.toString(); });
+                    child.on('close', (code) => {
+                        if (code === 0) resolve();
+                        else reject(new Error(stderr || `Worker exited with code ${code}`));
+                    });
+                    child.on('error', reject);
+                });
+            }
+
+            releaseInferenceSlot(outputFilename);
+            slotAcquired = false;
+
+            res.set({
+                'Content-Type': 'image/png',
+                'X-Model-Used': actualModelUsed,
+                'X-Model-File': actualModelFile,
+                'Content-Disposition': 'inline; filename="nobg.png"'
+            });
+
+            return fs.createReadStream(outputPath).on('close', () => {
+                try { fs.unlinkSync(inputPath); } catch (_) {}
+                try { fs.unlinkSync(outputPath); } catch (_) {}
+            }).pipe(res);
+
+        } catch (err) {
+            if (slotAcquired) releaseInferenceSlot(outputFilename);
+            try { fs.unlinkSync(inputPath); } catch (_) {}
+            try { fs.unlinkSync(outputPath); } catch (_) {}
+            return res.status(500).json({ status: false, error: safeErrorMessage(err) });
+        }
     });
 
 
@@ -513,9 +771,10 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
     const inputPath = job.inputPath;
     const outputFilename = `nobg-${path.parse(job.filename).name}.png`;
     const outputPath = path.join(OUTPUT_DIR, outputFilename);
+    const modelChoice = (req.query.model || job.model || 'isnet').toLowerCase();
 
     try {
-        sendEvent(5, 'Initializing AI engine...', `Received file: ${job.filename} (${(job.size / 1024).toFixed(1)} KB)`);
+        sendEvent(5, 'Initializing AI engine...', `Received file: ${job.filename} (${(job.size / 1024).toFixed(1)} KB) | Model: ${modelChoice.toUpperCase()}`);
 
         sendEvent(10, 'Reading image metadata...', 'Reading dimensions & EXIF orientation via Sharp');
         const metadata = await sharp(inputPath, { limitInputPixels: Math.ceil(MAX_IMAGE_PIXELS * 1.1) }).metadata();
@@ -536,24 +795,28 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
             return;
         }
 
-        sendEvent(35, 'Running AI segmentation...', 'Executing BRIA RMBG-1.4 ONNX inference...', {
+        const modelLabel = MODEL_DISPLAY_NAMES[modelChoice] || modelChoice.toUpperCase();
+        sendEvent(35, `Running ${modelLabel}...`, `Executing ${modelLabel} ONNX inference...`, {
             queuePosition: 0,
             estimatedSeconds: 0
         });
 
         const BACKEND_URL = process.env.BACKEND_URL || process.env.MODEL_SERVER_URL;
 
+        let actualModelUsed = modelLabel;
+        let actualModelFile = MODEL_FILE_NAMES[modelChoice] || `${modelChoice}.onnx`;
+
         if (BACKEND_URL) {
-            sendEvent(45, 'Processing on Model Server...', 'Executing model on AI Inference Engine...');
+            sendEvent(45, 'Processing on Model Server...', `Executing ${modelLabel} on AI Inference Engine...`);
             const fileBuf = fs.readFileSync(inputPath);
             const form = new FormData();
             form.append('image', new Blob([fileBuf]), job.filename);
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const timeoutId = setTimeout(() => controller.abort(), 120000);
             let resp;
             try {
-                resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference`, {
+                resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/inference?model=${encodeURIComponent(modelChoice)}`, {
                     method: 'POST',
                     body: form,
                     signal: controller.signal
@@ -567,9 +830,18 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
                 throw new Error(errJson.error || `Model Server returned HTTP ${resp.status}`);
             }
 
+            const headerModelKey = resp.headers.get('x-model-used');
+            const headerModelFile = resp.headers.get('x-model-file');
+            if (headerModelKey) {
+                actualModelUsed = MODEL_DISPLAY_NAMES[headerModelKey.toLowerCase()] || headerModelKey;
+            }
+            if (headerModelFile) {
+                actualModelFile = headerModelFile;
+            }
+
             const arrayBuf = await resp.arrayBuffer();
             fs.writeFileSync(outputPath, Buffer.from(arrayBuf));
-            sendEvent(92, 'Result received!', 'Transparent PNG received from remote Model Server.');
+            sendEvent(92, 'Result received!', `Transparent PNG generated via ${actualModelUsed}.`);
         } else {
             let currentInferPct = 35;
             let stepCount = 1;
@@ -580,11 +852,19 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
                 }
                 if (currentInferPct < 85) {
                     currentInferPct += 10;
-                    sendEvent(currentInferPct, 'Running AI inference on CPU...', `[Inference Step ${stepCount++}] Processing segmentation feature maps...`);
+                    sendEvent(currentInferPct, `Running ${modelLabel} on CPU...`, `[Inference Step ${stepCount++}] Processing segmentation feature maps...`);
                 }
             }, 600);
 
             const workerPath = path.join(BASE_DIR, 'inference-worker.js');
+            const targetModelFile = modelChoice === 'rmbg' 
+                ? MODEL_PATH
+                : ISNET_MODEL_PATH;
+
+            if (!fs.existsSync(targetModelFile)) {
+                throw new Error(`Model weight file for [${modelChoice.toUpperCase()}] not found: ${targetModelFile}`);
+            }
+
             const runWorker = () => new Promise((resolve, reject) => {
                 childProcess = spawn(process.execPath, [
                     '--expose-gc',
@@ -592,7 +872,7 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
                     workerPath,
                     inputPath,
                     outputPath,
-                    MODEL_PATH
+                    targetModelFile
                 ]);
 
                 let stderrOutput = '';
@@ -623,13 +903,36 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
         const durationMs = Date.now() - startTime;
         sendEvent(100, 'Complete!', `Background removed successfully in ${(durationMs / 1000).toFixed(2)} seconds.`);
 
+        let outStat = null;
+        try {
+            outStat = fs.statSync(outputPath);
+        } catch (_) {}
+
+        const outputSizeBytes = outStat ? outStat.size : 0;
+        const inputSizeBytes = job.size || 0;
+
+        const formatBytes = (bytes) => {
+            if (!bytes) return '0 KB';
+            if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            return Math.round(bytes / 1024) + ' KB';
+        };
+
         if (!isClosed) {
             res.write(`event: complete\ndata: ${JSON.stringify({
                 status: true,
                 durationMs,
                 originalUrl: `/tmp/${job.filename}`,
                 resultUrl: `/tmp/${outputFilename}`,
-                downloadName: outputFilename
+                downloadName: outputFilename,
+                metadata: {
+                    modelUsed: actualModelUsed,
+                    modelKey: modelChoice,
+                    modelFile: actualModelFile,
+                    dimensions: `${metadata.width} × ${metadata.height}`,
+                    inputSize: formatBytes(inputSizeBytes),
+                    outputSize: formatBytes(outputSizeBytes),
+                    format: (metadata.format || 'image').toUpperCase()
+                }
             })}\n\n`);
             res.end();
         }
@@ -641,7 +944,9 @@ app.get('/api/process-stream/:jobId', streamRatePerIp, async (req, res) => {
         try { fs.unlinkSync(job.inputPath); } catch (_) {}
 
         if (!isClosed) {
-            res.write(`event: error\ndata: ${JSON.stringify({ status: false, error: safeErrorMessage(err) })}\n\n`);
+            const errPayload = JSON.stringify({ status: false, error: safeErrorMessage(err) });
+            res.write(`event: app_error\ndata: ${errPayload}\n\n`);
+            res.write(`event: error\ndata: ${errPayload}\n\n`);
             res.end();
         }
         jobs.delete(jobId);
