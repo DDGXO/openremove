@@ -9,11 +9,10 @@ tmp/*
 .env
 .env.local
 
-# AI Model Weights (Large binary ONNX weights, downloaded via scripts/HuggingFace)
+
+# Large ONNX models (ignored for manual upload, keep u2netp only)
 models/*.onnx
-models/**/*.onnx
-!models/.gitkeep
-!models/*/.gitkeep
+!models/u2netp.onnx
 
 # Backups and OS artifacts
 *.bak
