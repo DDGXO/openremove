@@ -84,30 +84,7 @@ app.get(['/ping', '/api/ping'], (req, res) => {
     });
 });
 
-// Static Documentation Routes
-app.get('/status', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'status.html'));
-});
 
-app.get('/how-to-use', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'how-to-use.html'));
-});
-
-app.get(['/api-docs', '/api'], (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'api-docs.html'));
-});
-
-app.get('/privacy', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'privacy.html'));
-});
-
-app.get(['/faq', '/limitations'], (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'faq.html'));
-});
-
-app.get('/contributing', (req, res) => {
-    res.sendFile(path.join(PUBLIC_DIR, 'contributing.html'));
-});
 
 // Private temp file accessor (whitelisted image files only)
 app.get('/tmp/:name', (req, res) => {
@@ -181,9 +158,22 @@ setInterval(async () => {
     const now = Date.now();
     const todayStr = new Date(now).toISOString().split('T')[0];
 
-    // 1) Frontend Probe (HTML & static assets existence)
-    const frontendHealthy = fs.existsSync(path.join(PUBLIC_DIR, 'index.html'));
-    const frontendLatency = Math.floor(2 + Math.random() * 3);
+    // 1) Frontend Probe (Next.js web service HTTP health check)
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
+    let frontendHealthy = false;
+    let frontendLatency = 0;
+    const fStart = Date.now();
+    try {
+        const fController = new AbortController();
+        const fTimeout = setTimeout(() => fController.abort(), 2000);
+        const fResp = await fetch(FRONTEND_URL, { signal: fController.signal });
+        clearTimeout(fTimeout);
+        frontendHealthy = fResp.ok;
+        frontendLatency = Date.now() - fStart;
+    } catch (_) {
+        frontendHealthy = false;
+        frontendLatency = 0;
+    }
     insertHeartbeatStmt.run('frontend', now, frontendHealthy ? 1 : 0, frontendLatency);
     updateDailyTodayStmt.run('frontend', todayStr, now, frontendHealthy ? 1 : 0, frontendHealthy ? 100.0 : 0.0);
 
