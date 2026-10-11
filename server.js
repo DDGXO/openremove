@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { spawn } = require('child_process');
+const next = require('next');
 const {
     getClientIp,
     rateLimit,
@@ -27,6 +28,9 @@ app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 
 const BASE_DIR = path.resolve(__dirname);
+const dev = process.env.NODE_ENV !== 'production';
+const nextApp = next({ dev, dir: BASE_DIR });
+const handle = nextApp.getRequestHandler();
 const TMP_DIR = path.join(BASE_DIR, 'tmp');
 const OUTPUT_DIR = TMP_DIR;
 const PUBLIC_DIR = path.join(BASE_DIR, 'public');
@@ -159,7 +163,7 @@ setInterval(async () => {
     const todayStr = new Date(now).toISOString().split('T')[0];
 
     // 1) Frontend Probe (Next.js web service HTTP health check)
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const FRONTEND_URL = process.env.FRONTEND_URL || `http://127.0.0.1:${PORT}`;
     let frontendHealthy = false;
     let frontendLatency = 0;
     const fStart = Date.now();
@@ -1008,43 +1012,25 @@ function sweepTmp() {
 sweepTmp();
 setInterval(sweepTmp, SWEEP_INTERVAL_MS).unref();
 
-// 404 Handler
-app.use((req, res) => {
-    if (req.accepts('html')) {
-        res.status(404).send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>404 - Page Not Found | OpenRemove</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-            </head>
-            <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col items-center justify-center p-6 text-center font-sans">
-                <div class="max-w-md w-full bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
-                    <div class="text-5xl font-extrabold text-blue-600 mb-2">404</div>
-                    <h1 class="text-xl font-bold text-gray-900 mb-2">Page Not Found</h1>
-                    <p class="text-sm text-gray-500 mb-6">The page or endpoint you are looking for does not exist.</p>
-                    <a href="/" class="inline-block px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm transition">
-                        Back to Home
-                    </a>
-                </div>
-            </body>
-            </html>
-        `);
-    } else {
-        res.status(404).json({ status: false, error: 'Endpoint not found.' });
-    }
-});
+// Next.js Frontend Request Handler (Full-Stack Next.js SSR & Static Routing)
+nextApp.prepare().then(() => {
+    // Route all non-API / non-tmp requests to Next.js
+    app.all('*', (req, res) => {
+        return handle(req, res);
+    });
 
-app.listen(PORT, () => {
-    console.log(`=========================================`);
-    console.log(`OpenRemove Web Server running at http://localhost:${PORT}`);
-    if (process.env.BACKEND_URL || process.env.MODEL_SERVER_URL) {
-        console.log(`[MODE] Decoupled: Routing AI tasks to ${process.env.BACKEND_URL || process.env.MODEL_SERVER_URL}`);
-    } else {
-        console.log(`[MODE] Standalone: Local isolated worker inference`);
-    }
-    console.log(`[SEC] Rate limits enabled | CORS restricted | security headers on | tmp TTL ${FILE_TTL_MS / 60000} min`);
-    console.log(`=========================================`);
+    app.listen(PORT, () => {
+        console.log(`=========================================`);
+        console.log(`OpenRemove Web Server running at http://localhost:${PORT}`);
+        if (process.env.BACKEND_URL || process.env.MODEL_SERVER_URL) {
+            console.log(`[MODE] Decoupled: Routing AI tasks to ${process.env.BACKEND_URL || process.env.MODEL_SERVER_URL}`);
+        } else {
+            console.log(`[MODE] Standalone: Local isolated worker inference`);
+        }
+        console.log(`[SEC] Rate limits enabled | CORS restricted | security headers on | tmp TTL ${FILE_TTL_MS / 60000} min`);
+        console.log(`=========================================`);
+    });
+}).catch((err) => {
+    console.error('[NEXT ERROR] Failed to initialize Next.js engine:', err);
+    process.exit(1);
 });
