@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-11
+
+### Added
+- **Next.js 14 Frontend Migration:** Complete UI rewrite using Next.js App Router, Tailwind CSS, and React components (`src/app/`).
+- **Dual-Language i18n System:** Dynamic Indonesian (`id`) and English (`en`) locale switching across all application routes, guides, and status monitors (`src/context/LanguageContext.js`).
+- **Multi-Model Inference Engine:** Added support for Silueta, U²-NetP Compact, IS-Net (DIS), BRIA RMBG-1.4, and BEN2 SOTA models with live model status badges.
+- **PWA & GEO AI Search Optimization:** Added PWA web app manifest (`public/manifest.json`), AI crawler indexing (`public/llms.txt`, expanded `public/robots.txt`), Schema.org `@graph` JSON-LD structured data, and responsive branding icons.
+
+### Changed
+- **Direct HTTP Frontend Heartbeat:** Refactored frontend health monitor in `server.js` to probe the Next.js service via HTTP fetch with real latency metrics instead of filesystem checks.
+- **BEN2 State Retention & Probe Resiliency:** Extended backend health check timeout and introduced `lastKnownModels` caching in `server.js` to eliminate false offline indicators during high-intensity CPU inference.
+
+### Removed
+- **Legacy Static HTML Files:** Deleted obsolete static HTML pages (`api-docs.html`, `contributing.html`, `faq.html`, `how-to-use.html`, `index.html`, `privacy.html`, `status.html`) from `public/` in favor of full Next.js React routing.
+
+---
+
 ## [1.1.5] - 2026-09-28
 
 ### Fixed
