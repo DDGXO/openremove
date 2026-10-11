@@ -173,7 +173,10 @@ const cleanupHeartbeatsStmt = db.prepare('DELETE FROM heartbeats_v2 WHERE timest
 const getDailyUptimeStmt = db.prepare('SELECT date, timestamp, healthy, uptime FROM daily_uptime_v2 WHERE service = ? ORDER BY timestamp ASC');
 const updateDailyTodayStmt = db.prepare('INSERT OR REPLACE INTO daily_uptime_v2 (service, date, timestamp, healthy, uptime) VALUES (?, ?, ?, ?, ?)');
 
-// Background probe every 1 second across all 3 monitors
+let lastKnownModels = null;
+let lastKnownBackendMemory = 0;
+
+// Background probe every 1 second across all monitors
 setInterval(async () => {
     const now = Date.now();
     const todayStr = new Date(now).toISOString().split('T')[0];
@@ -208,10 +211,11 @@ setInterval(async () => {
             u2netpHealthy = true;
             isnetHealthy = true;
             rmbgHealthy = true;
+            ben2Healthy = true;
             backendLatency = 12;
         } else {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
             try {
                 const resp = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/health`, { signal: controller.signal });
                 backendHealthy = resp.ok;
@@ -223,15 +227,27 @@ setInterval(async () => {
                     isnetHealthy = !!(healthJson.models?.isnet?.loaded);
                     rmbgHealthy = !!(healthJson.models?.rmbg?.loaded);
                     ben2Healthy = !!(healthJson.models?.ben2?.loaded);
+                    if (healthJson.models) lastKnownModels = healthJson.models;
+                    if (healthJson.memoryMb) lastKnownBackendMemory = healthJson.memoryMb;
                 }
             } catch (_) {
-                backendHealthy = false;
-                siluetaHealthy = false;
-                u2netpHealthy = false;
-                isnetHealthy = false;
-                rmbgHealthy = false;
-                ben2Healthy = false;
-                backendLatency = 0;
+                if (lastKnownModels) {
+                    siluetaHealthy = !!(lastKnownModels.silueta?.loaded);
+                    u2netpHealthy = !!(lastKnownModels.u2netp?.loaded);
+                    isnetHealthy = !!(lastKnownModels.isnet?.loaded);
+                    rmbgHealthy = !!(lastKnownModels.rmbg?.loaded);
+                    ben2Healthy = !!(lastKnownModels.ben2?.loaded);
+                    backendHealthy = siluetaHealthy || u2netpHealthy || isnetHealthy || rmbgHealthy || ben2Healthy;
+                    backendLatency = 15;
+                } else {
+                    backendHealthy = false;
+                    siluetaHealthy = false;
+                    u2netpHealthy = false;
+                    isnetHealthy = false;
+                    rmbgHealthy = false;
+                    ben2Healthy = false;
+                    backendLatency = 0;
+                }
             } finally {
                 clearTimeout(timeoutId);
             }
@@ -357,10 +373,16 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
     if (BACKEND_URL) {
         if (activeInferences > 0) {
             isBackendHealthy = true;
-            backendInfo.models.silueta.loaded = true;
-            backendInfo.models.u2netp.loaded = true;
-            backendInfo.models.isnet.loaded = true;
-            backendInfo.models.rmbg.loaded = true;
+            if (lastKnownModels) {
+                backendInfo.models = JSON.parse(JSON.stringify(lastKnownModels));
+            } else {
+                backendInfo.models.silueta.loaded = true;
+                backendInfo.models.u2netp.loaded = true;
+                backendInfo.models.isnet.loaded = true;
+                backendInfo.models.rmbg.loaded = true;
+                backendInfo.models.ben2.loaded = true;
+            }
+            if (lastKnownBackendMemory) backendInfo.memoryMb = lastKnownBackendMemory;
         } else {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -369,11 +391,23 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
                 isBackendHealthy = resp.ok;
                 if (resp.ok) {
                     const healthData = await resp.json().catch(() => ({}));
-                    if (healthData.models) backendInfo.models = healthData.models;
-                    if (healthData.memoryMb) backendInfo.memoryMb = healthData.memoryMb;
+                    if (healthData.models) {
+                        backendInfo.models = healthData.models;
+                        lastKnownModels = healthData.models;
+                    }
+                    if (healthData.memoryMb) {
+                        backendInfo.memoryMb = healthData.memoryMb;
+                        lastKnownBackendMemory = healthData.memoryMb;
+                    }
                 }
             } catch (_) {
-                isBackendHealthy = false;
+                if (lastKnownModels) {
+                    backendInfo.models = JSON.parse(JSON.stringify(lastKnownModels));
+                    if (lastKnownBackendMemory) backendInfo.memoryMb = lastKnownBackendMemory;
+                    isBackendHealthy = true;
+                } else {
+                    isBackendHealthy = false;
+                }
             } finally {
                 clearTimeout(timeoutId);
             }
