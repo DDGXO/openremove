@@ -429,11 +429,11 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
                     loaded: !!backendInfo.models.rmbg?.loaded
                 },
                 ben2: {
-                    name: 'BEN2 SOTA Engine (Coming Soon)',
+                    name: 'BEN2 SOTA Engine',
                     file: backendInfo.models.ben2?.file || 'ben2.onnx',
-                    status: backendInfo.models.ben2?.loaded ? 'operational' : 'planned',
+                    status: backendInfo.models.ben2?.loaded ? 'operational' : 'offline',
                     loaded: !!backendInfo.models.ben2?.loaded,
-                    comingSoon: true
+                    comingSoon: false
                 }
             }
         },
@@ -473,8 +473,8 @@ app.get('/api/status', statusRatePerIp, async (req, res) => {
                 history: getServiceHistory('rmbg')
             },
             ben2: {
-                name: 'BEN2 SOTA Engine (Coming Soon)',
-                status: backendInfo.models.ben2?.loaded ? 'operational' : 'planned',
+                name: 'BEN2 SOTA Engine',
+                status: backendInfo.models.ben2?.loaded ? 'operational' : 'offline',
                 file: backendInfo.models.ben2?.file || 'ben2.onnx',
                 history: getServiceHistory('ben2')
             }

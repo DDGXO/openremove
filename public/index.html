@@ -302,9 +302,9 @@
                     <span>RMBG-1.4</span>
                     <span id="badgeRmbg" class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 font-semibold">Fast</span>
                 </button>
-                <button type="button" id="btnModelBen2" onclick="selectModel('ben2')" class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60 cursor-pointer" title="BEN2 - Best-in-class SOTA model with ~99% accuracy and 1:1 remove.bg quality (Coming Soon)">
+                <button type="button" id="btnModelBen2" onclick="selectModel('ben2')" class="px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white" title="BEN2 - SOTA model with ~99% accuracy and 1:1 remove.bg quality">
                     <span>BEN2</span>
-                    <span id="badgeBen2" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-200 font-bold">Coming Soon</span>
+                    <span id="badgeBen2" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-semibold">SOTA (~99%)</span>
                 </button>
             </div>
         </div>
@@ -515,31 +515,18 @@
         const modelNoticeText = document.getElementById('modelNoticeText');
         const uploadButton = document.getElementById('uploadButton');
 
-        let selectedModel = localStorage.getItem('selectedModel') || 'silueta';
-        let modelAvailability = { silueta: true, u2netp: true, isnet: true, rmbg: true, ben2: false };
+        let selectedModel = localStorage.getItem('selectedModel') || 'ben2';
+        let modelAvailability = { silueta: true, u2netp: true, isnet: true, rmbg: true, ben2: true };
 
         const MODEL_META = {
             silueta: { name: 'Silueta', label: 'Ultra Fast', activeClass: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300', inactiveClass: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' },
             u2netp: { name: 'U²-NetP', label: 'Lightweight', activeClass: 'bg-cyan-100 dark:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300', inactiveClass: 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400' },
             isnet: { name: 'IS-Net', label: 'Clean Edges', activeClass: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300', inactiveClass: 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400' },
             rmbg: { name: 'RMBG-1.4', label: 'Fast', activeClass: 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300', inactiveClass: 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400' },
-            ben2: { name: 'BEN2', label: 'Coming Soon', activeClass: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300', inactiveClass: 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400' }
+            ben2: { name: 'BEN2', label: 'SOTA (~99%)', activeClass: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300', inactiveClass: 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400' }
         };
 
         function updateUploadUIState() {
-            if (selectedModel === 'ben2') {
-                if (modelNoticeBanner && modelNoticeText) {
-                    modelNoticeBanner.classList.remove('hidden');
-                    modelNoticeBanner.classList.add('flex');
-                    modelNoticeText.textContent = 'BEN2 is the highest-accuracy model (~99% accuracy, 1:1 remove.bg quality), currently Coming Soon. Image upload is disabled for this model.';
-                }
-                if (uploadButton) {
-                    uploadButton.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
-                    uploadButton.setAttribute('disabled', 'true');
-                }
-                return;
-            }
-
             const isAvail = modelAvailability[selectedModel] !== false;
             if (!isAvail) {
                 const modelName = MODEL_META[selectedModel]?.name || selectedModel;
@@ -570,24 +557,6 @@
                 const badge = document.getElementById('badge' + k.charAt(0).toUpperCase() + k.slice(1));
                 const meta = MODEL_META[k];
                 if (!btn || !meta) return;
-
-                if (k === 'ben2') {
-                    if (selectedModel === 'ben2') {
-                        btn.className = 'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-amber-500 text-white font-bold shadow-sm cursor-pointer';
-                        if (badge) {
-                            badge.textContent = 'Coming Soon';
-                            badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-amber-600 text-white font-bold';
-                        }
-                    } else {
-                        btn.className = 'px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60 cursor-pointer';
-                        if (badge) {
-                            badge.textContent = 'Coming Soon';
-                            badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-200 font-bold';
-                        }
-                    }
-                    btn.title = 'BEN2 - Best-in-class SOTA model with ~99% accuracy and 1:1 remove.bg quality (Coming Soon)';
-                    return;
-                }
 
                 const isAvail = modelAvailability[k] !== false;
 
@@ -637,11 +606,6 @@
         }
 
         fileInput.addEventListener('change', (e) => {
-            if (selectedModel === 'ben2') {
-                fileInput.value = '';
-                alert('BEN2 is currently Coming Soon. Please select an active model (Silueta, U²-NetP, IS-Net, or RMBG-1.4) to upload images.');
-                return;
-            }
             if (e.target.files && e.target.files[0]) {
                 handleUpload(e.target.files[0]);
             }
@@ -650,20 +614,12 @@
         window.addEventListener('dragover', (e) => e.preventDefault());
         window.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (selectedModel === 'ben2') {
-                alert('BEN2 is currently Coming Soon. Please select an active model (Silueta, U²-NetP, IS-Net, or RMBG-1.4) to upload images.');
-                return;
-            }
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 handleUpload(e.dataTransfer.files[0]);
             }
         });
 
         window.addEventListener('paste', (e) => {
-            if (selectedModel === 'ben2') {
-                alert('BEN2 is currently Coming Soon. Please select an active model (Silueta, U²-NetP, IS-Net, or RMBG-1.4) to upload images.');
-                return;
-            }
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.type.indexOf('image') !== -1) {
@@ -692,10 +648,6 @@
         }
 
         async function handleUpload(file) {
-            if (selectedModel === 'ben2') {
-                alert('BEN2 is currently Coming Soon. Please select an active model (Silueta, U²-NetP, IS-Net, or RMBG-1.4) to upload images.');
-                return;
-            }
             if (modelAvailability[selectedModel] === false) {
                 const name = MODEL_META[selectedModel]?.name || selectedModel;
                 alert(`Model ${name} is currently offline. Please choose an active model before uploading.`);
@@ -883,7 +835,7 @@
                     modelAvailability.u2netp = !!bm.u2netp?.loaded;
                     modelAvailability.isnet = !!bm.isnet?.loaded;
                     modelAvailability.rmbg = !!bm.rmbg?.loaded;
-                    modelAvailability.ben2 = false; // Coming Soon
+                    modelAvailability.ben2 = !!bm.ben2?.loaded;
 
                     renderModelButtons();
                     updateUploadUIState();

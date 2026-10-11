@@ -179,15 +179,15 @@
             </div>
 
             <!-- BEN2 Model Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 p-5 shadow-sm flex flex-col justify-between bg-amber-50/20 dark:bg-amber-950/10">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 p-5 shadow-sm flex flex-col justify-between">
                 <div>
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
-                            <div class="w-2.5 h-2.5 rounded-full bg-amber-500" id="ben2Dot"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="ben2Dot"></div>
                             <h2 class="text-xs font-bold text-gray-900 dark:text-white">BEN2 SOTA Engine</h2>
                         </div>
-                        <span id="ben2Badge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
-                            Coming Soon
+                        <span id="ben2Badge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            Active
                         </span>
                     </div>
                     
@@ -198,7 +198,7 @@
                         </div>
                         <div class="flex justify-between py-1 border-b border-gray-100 dark:border-slate-800">
                             <span class="text-gray-400 dark:text-slate-500">Inference State</span>
-                            <span id="ben2LoadedState" class="font-mono font-semibold text-amber-600 dark:text-amber-400">Planned (Offline)</span>
+                            <span id="ben2LoadedState" class="font-mono font-semibold text-emerald-600 dark:text-emerald-400">Preloaded</span>
                         </div>
                     </div>
                 </div>
@@ -769,21 +769,6 @@
                     const dot = document.getElementById(`${key}Dot`);
                     const loadedState = document.getElementById(`${key}LoadedState`);
 
-                    if (key === 'ben2') {
-                        if (badge) {
-                            badge.textContent = 'Coming Soon';
-                            badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800';
-                        }
-                        if (dot) {
-                            dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
-                        }
-                        if (loadedState) {
-                            loadedState.textContent = 'Planned (Offline)';
-                            loadedState.className = 'font-mono font-semibold text-amber-600 dark:text-amber-400';
-                        }
-                        return false;
-                    }
-
                     if (badge) {
                         badge.textContent = op ? 'Loaded & Active' : 'Offline';
                         badge.className = op 
@@ -816,7 +801,7 @@
                     renderAllMonitors();
                 }
 
-                const activeCount = [siluetaOp, u2netpOp, isnetOp, rmbgOp].filter(Boolean).length;
+                const activeCount = [ben2Op, siluetaOp, u2netpOp, isnetOp, rmbgOp].filter(Boolean).length;
                 if (data.system === 'operational') {
                     overallBanner.className = 'w-full bg-emerald-500 text-white rounded-2xl p-6 mb-8 shadow-sm flex items-center justify-between transition-colors duration-300';
                     overallTitle.textContent = 'All Systems Operational';

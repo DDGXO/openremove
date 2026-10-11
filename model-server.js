@@ -50,15 +50,14 @@ const sessions = {};
 
 const sessionOptions = {
     executionProviders: ['cpu'],
-    enableCpuMemArena: false,
-    enableMemPattern: false,
+    enableCpuMemArena: true,
+    enableMemPattern: true,
     executionMode: 'sequential',
-    graphOptimizationLevel: 'basic',
+    graphOptimizationLevel: 'all',
     intraOpNumThreads: parseInt(process.env.THREADS || '2', 10),
     interOpNumThreads: 1,
     extra: {
         session: {
-            'memory.enable_memory_arena_shrinkage': 'cpu:0',
             'intra_op.allow_spinning': '0'
         }
     }
@@ -164,13 +163,31 @@ app.post('/inference', upload.single('image'), async (req, res) => {
         const mean = [0.485, 0.456, 0.406];
         const std = [0.229, 0.224, 0.225];
 
-        const floatArray = new Float32Array(3 * inputDim * inputDim);
-        for (let c = 0; c < 3; c++) {
-            const m = isImageNetNorm ? mean[c] : 0.5;
-            const s = isImageNetNorm ? std[c] : 1.0;
-            const offset = c * inputDim * inputDim;
-            for (let i = 0; i < inputDim * inputDim; i++) {
-                floatArray[offset + i] = ((rawBuffer[i * 3 + c] / 255.0) - m) / s;
+        const pixelsCount = inputDim * inputDim;
+        const floatArray = new Float32Array(3 * pixelsCount);
+        const inv255 = 1.0 / 255.0;
+
+        if (isImageNetNorm) {
+            const m0 = mean[0], m1 = mean[1], m2 = mean[2];
+            const invS0 = 1.0 / std[0], invS1 = 1.0 / std[1], invS2 = 1.0 / std[2];
+            const offsetG = pixelsCount;
+            const offsetB = pixelsCount * 2;
+
+            for (let i = 0; i < pixelsCount; i++) {
+                const idx = i * 3;
+                floatArray[i] = ((rawBuffer[idx] * inv255) - m0) * invS0;
+                floatArray[offsetG + i] = ((rawBuffer[idx + 1] * inv255) - m1) * invS1;
+                floatArray[offsetB + i] = ((rawBuffer[idx + 2] * inv255) - m2) * invS2;
+            }
+        } else {
+            const offsetG = pixelsCount;
+            const offsetB = pixelsCount * 2;
+
+            for (let i = 0; i < pixelsCount; i++) {
+                const idx = i * 3;
+                floatArray[i] = (rawBuffer[idx] * inv255) - 0.5;
+                floatArray[offsetG + i] = (rawBuffer[idx + 1] * inv255) - 0.5;
+                floatArray[offsetB + i] = (rawBuffer[idx + 2] * inv255) - 0.5;
             }
         }
 
@@ -179,24 +196,27 @@ app.post('/inference', upload.single('image'), async (req, res) => {
         const results = await sess.run({ [inputName]: inputTensor });
         const maskData = results[sess.outputNames[0]].data;
 
-        let minVal = Infinity;
-        let maxVal = -Infinity;
-        for (let i = 0; i < maskData.length; i++) {
-            if (maskData[i] < minVal) minVal = maskData[i];
-            if (maskData[i] > maxVal) maxVal = maskData[i];
+        let minVal = maskData[0];
+        let maxVal = maskData[0];
+        const maskLen = maskData.length;
+        for (let i = 1; i < maskLen; i++) {
+            const v = maskData[i];
+            if (v < minVal) minVal = v;
+            else if (v > maxVal) maxVal = v;
         }
-        const range = maxVal - minVal || 1;
+        const range = maxVal - minVal || 1.0;
+        const scale = 255.0 / range;
 
-        const maskBuf = Buffer.alloc(inputDim * inputDim);
-        for (let i = 0; i < maskData.length; i++) {
-            const norm = (maskData[i] - minVal) / range;
-            maskBuf[i] = Math.max(0, Math.min(255, Math.round(norm * 255)));
+        const maskBuf = Buffer.allocUnsafe(maskLen);
+        for (let i = 0; i < maskLen; i++) {
+            const val = (maskData[i] - minVal) * scale;
+            maskBuf[i] = val <= 0 ? 0 : (val >= 255 ? 255 : (val + 0.5) | 0);
         }
 
         const maskOrig = await sharp(maskBuf, {
             raw: { width: inputDim, height: inputDim, channels: 1 }
         })
-        .resize(origW, origH, { fit: 'fill' })
+        .resize(origW, origH, { fit: 'fill', kernel: sharp.kernel.bilinear })
         .toColourspace('b-w')
         .raw()
         .toBuffer();
@@ -207,7 +227,7 @@ app.post('/inference', upload.single('image'), async (req, res) => {
         .joinChannel(maskOrig, {
             raw: { width: origW, height: origH, channels: 1 }
         })
-        .png({ compressionLevel: 6 })
+        .png({ compressionLevel: 3, effort: 1, adaptiveFiltering: false })
         .toBuffer();
 
         const durationMs = Date.now() - startTime;
