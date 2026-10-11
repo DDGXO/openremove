@@ -12,15 +12,22 @@ OpenRemove provides a self-hosted, private alternative designed for efficient lo
 
 ---
 
-## Key Features
+### Key Features
 
-- **BRIA RMBG-1.4 Segmentation**: High-resolution image segmentation for fine edge preservation, hair matting, and foreground isolation.
-- **Ultra-Lightweight & Fast**: Slashes peak RAM to <700MB and completes inference in 2-3.3s on standard CPU cores.
-- **Local Execution**: Runs 100% offline via Microsoft ONNX Runtime (C++ engine) with AVX2 CPU acceleration.
+- **Multi-Model AI Engine**: Support for 5 specialized segmentation models:
+  - **BRIA RMBG-1.4**: High-resolution image segmentation for fine edge preservation and hair matting.
+  - **IS-Net (DIS)**: Dichotomous image segmentation for sharp, crisp boundaries on solid objects.
+  - **Silueta**: Ultra-fast, lightweight BiRefNet-based inference (~0.8s on CPU).
+  - **U²-NetP**: Ultra-compact 4.7 MB footprint designed for constrained memory environments.
+  - **BEN2 SOTA**: Boundary-aware deep matting with refined alpha boundary accuracy.
+- **Next.js 14 App Router Frontend**: Full-stack modern UI with Tailwind CSS and dark/light theme support.
+- **Dual-Language i18n**: Live locale switcher supporting Indonesian (`id`) and English (`en`).
+- **PWA Ready**: Offline-capable Progressive Web App manifest and installable standalone desktop/mobile UI.
+- **Enterprise Decoupled Architecture**: Independent Model Inference Engine (`model-server.js`), Web API Gateway (`server.js`), and Next.js Frontend service.
 - **Comparison Viewer**: Built-in before/after split slider powered by CSS clipping.
 - **Real-Time Progress Streaming**: Server-Sent Events (SSE) provide live progress percentages and execution stages.
-- **Clipboard & Drag-and-Drop**: Supports direct image paste (`Ctrl + V`) and file selection.
-- **REST API**: Simple endpoints for integration with bot services, scripts, and automated workflows.
+- **Clipboard & Drag-and-Drop**: Direct image paste (`Ctrl + V`) and native drag-and-drop file upload.
+- **Zero Cloud Telemetry**: Fully private, air-gapped, and local-first execution.
 
 ---
 
@@ -38,22 +45,40 @@ openremove/
 │   ├── CONTRIBUTING.md
 │   └── SECURITY.md
 ├── models/
-│   └── model.onnx              # RMBG-1.4 ONNX model weights (168 MB)
+│   ├── README.md               # Model download sources and instructions
+│   └── u2netp.onnx             # Pre-bundled compact ONNX weights (4.7 MB)
 ├── public/
-│   ├── index.html              # Main background remover web interface
-│   ├── how-to-use.html         # User guide page
-│   ├── api-docs.html           # REST API reference documentation
-│   ├── faq.html                # FAQ and technical limits
-│   ├── privacy.html            # Privacy policy & data safety
-│   ├── contributing.html       # Contribution guidelines
-│   ├── status.html             # Real-time system status monitor
-│   ├── robots.txt              # Crawler permissions
-│   └── .well-known/
-│       └── security.txt        # Vulnerability disclosure policy
-├── tmp/                        # Temporary uploaded images & outputs
+│   ├── .well-known/
+│   │   └── security.txt        # Vulnerability disclosure policy
+│   ├── apple-icon.png          # iOS touch icon
+│   ├── icon.png                # PWA app icon & favicon
+│   ├── llms.txt                # LLM & GEO AI crawler metadata
+│   ├── logo-horizontal.png     # Brand horizontal navbar logo
+│   ├── logo.png                # Standalone brand icon
+│   ├── manifest.json           # PWA standalone manifest
+│   ├── og-image.png            # OpenGraph social banner
+│   ├── robots.txt              # Search engine & AI bot permissions
+│   └── sitemap.xml             # Canonical XML sitemap
+├── src/
+│   ├── app/                    # Next.js 14 App Router routes
+│   │   ├── api-docs/           # Interactive REST API documentation
+│   │   ├── contributing/       # Contribution guide
+│   │   ├── faq/                # FAQ and technical limits
+│   │   ├── how-to-use/         # Step-by-step user guide
+│   │   ├── privacy/            # Privacy policy & data protection
+│   │   ├── status/             # Real-time multi-monitor dashboard
+│   │   ├── globals.css         # Tailwind directives and custom CSS
+│   │   ├── layout.js           # Root layout with JSON-LD SEO schema
+│   │   └── page.js             # Interactive home page & image canvas
+│   ├── components/
+│   │   ├── BrandingConsole.js  # Developer console signature
+│   │   └── Navbar.js           # Top navigation bar with theme and i18n
+│   └── context/
+│       └── LanguageContext.js  # Dual-language i18n state manager
+├── tmp/                        # Temporary uploaded images & outputs (auto-swept)
 ├── inference-worker.js         # Isolated worker for memory-safe inference
-├── model-server.js             # Standalone Model Engine API service
-├── server.js                   # Web gateway & REST API server
+├── model-server.js             # Standalone Model Engine API service (port 5000)
+├── server.js                   # Web gateway & REST API server (port 3000)
 ├── package.json                # Project dependencies and scripts
 ├── CHANGELOG.md                # Release history and updates
 ├── LICENSE                     # MIT License
@@ -68,7 +93,7 @@ openremove/
 
 - Node.js (version 18.0.0 or newer)
 - npm or yarn
-- ONNX Model weights (`models/model.onnx`)
+- ONNX model weights placed in `models/` (refer to `models/README.md`)
 
 ### 1. Installation
 
@@ -80,11 +105,7 @@ cd openremove
 npm install
 ```
 
-### 2. Model Weights
-
-- **RMBG-1.4 (Pre-included)**: Included in the repository under `models/model.onnx` for out-of-the-box offline inference.
-
-### 3. Environment Variables Configuration
+### 2. Environment Variables Configuration
 
 Copy the template to create your local `.env` file:
 
@@ -96,35 +117,41 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `PORT` | `3000` | Port for the web gateway interface and REST API |
 | `BACKEND_URL` | `http://localhost:5000` | URL or domain of the backend model engine |
-| `MODEL_PATH` | `./models/model.onnx` | Custom path to ONNX model weights |
-
+| `FRONTEND_URL`| `http://localhost:3001` | URL of the Next.js frontend for status probe |
+| `ACTIVE_MODELS`| `all` | Comma-separated list of active ONNX models |
+| `MODEL_PATH` | `./models/briarmbg.onnx`| Custom path to default RMBG model weights |
 
 ---
 
-### 4. Running the Server
+### 3. Running the Stack
 
-#### Option A: Standalone Mode (All-in-One)
-Run the web application and local AI inference pipeline together on a single server:
+#### Step A: Start the AI Model Inference Engine
+Runs the ONNX Runtime multi-model engine on port 5000:
 
 ```bash
-npm start
+npm run start:engine
 ```
 
-- **Web Interface**: `http://localhost:3000`
-- **Healthcheck**: `http://localhost:3000/ping`
+#### Step B: Start the Web API Gateway
+Runs the Express gateway and system monitor on port 3000:
 
-#### Option B: Decoupled Mode (Microservice Architecture)
-Run the Model Inference Engine on a dedicated compute machine and the Web Gateway on a separate node:
+```bash
+BACKEND_URL=http://localhost:5000 npm run start:web
+```
 
-1. **Start Model Engine Server** (Port `5000` on compute machine):
-   ```bash
-   npm run start:engine
-   ```
+#### Step C: Start the Next.js Frontend
+For local development:
 
-2. **Start Web Gateway** (pointing to Backend Model Server):
-   ```bash
-   BACKEND_URL=http://localhost:5000 npm run start:web
-   ```
+```bash
+npm run next:dev
+```
+
+For production deployment:
+
+```bash
+npm run next:build
+npm run next:start
+```
 
 ---
 

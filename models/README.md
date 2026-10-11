@@ -39,5 +39,7 @@ models/
 Control which models are loaded into memory via the `ACTIVE_MODELS` environment variable:
 
 ```bash
-ACTIVE_MODELS=silueta,u2netp,isnet,rmbg node model-server.js
+ACTIVE_MODELS=all node model-server.js
+# or select specific models:
+ACTIVE_MODELS=silueta,u2netp,isnet,rmbg,ben2 node model-server.js
 ```
