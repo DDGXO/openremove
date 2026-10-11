@@ -19,6 +19,26 @@ Allow: /
 Disallow: /tmp/
 Disallow: /api/
 
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
 # Sitemap
 Sitemap: https://openremove.dgxohq.com/sitemap.xml
-

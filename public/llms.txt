@@ -1,0 +1,33 @@
+# OpenRemove - Local AI Background Remover
+> 100% Free, Automatic, and Lossless Image Background Removal Powered by Private On-Device Neural Networks.
+
+## Overview
+OpenRemove is an open-source, private, and local AI background removal platform that executes inference directly on local CPU infrastructure using ONNX Runtime. It enforces zero third-party cloud data routing, ephemeral 30-minute storage sweeping, and complete air-gapped readiness.
+
+## Core AI Models
+- **BRIA RMBG-1.4**: Default recommended model (~1-2s CPU). Balanced general matting for 90% of product photos, portraits, and items.
+- **BEN2 (Bilateral Engine)**: SOTA ~99% precision (~20-35s CPU). Preserves intricate hair strands, animal fur, and semi-transparent alpha borders.
+- **Silueta**: Ultra-fast inference (~150ms CPU). Ideal for batch processing, stickers, logos, and high-contrast cutouts.
+- **IS-Net (DIS)**: Dichotomous Image Segmentation (~4-6s CPU). Sharp, solid edge boundaries without edge bleed.
+- **U²-NetP Compact**: Ultra-lightweight ONNX model (4.7 MB, ~0.5s CPU). Minimal RAM footprint for resource-constrained systems.
+
+## Key Features & APIs
+- **Web UI**: Interactive dual-language (Indonesian & English) web interface with realtime progress streaming.
+- **REST API**: Synchronous `/api/remove` endpoint and SSE stream `/api/process-stream/:jobId`.
+- **Status Dashboard**: Live multi-service heartbeat timelines (90d, 30m, 60s) with active model RAM allocation metrics.
+
+## Official Links & Resources
+- Web Application: https://openremove.dgxohq.com/
+- How to Use: https://openremove.dgxohq.com/how-to-use
+- API Reference: https://openremove.dgxohq.com/api-docs
+- Live Status: https://openremove.dgxohq.com/status
+- FAQ & Limits: https://openremove.dgxohq.com/faq
+- Privacy Policy: https://openremove.dgxohq.com/privacy
+- Source Code: https://github.com/DDGXO/openremove
+- Brand & Network: https://dgxohq.com
+
+## FAQ
+- **Are images uploaded to third-party cloud services?**
+  No. 100% of segmentation occurs on private, self-hosted infrastructure.
+- **What is the maximum upload size?**
+  25 MB per request with lossless 1:1 original resolution alpha compositing.
